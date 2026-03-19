@@ -1,0 +1,19 @@
+#!/bin/sh
+# Pre-commit hook: format check, vet, and lint.
+# Install: git config core.hooksPath .githooks
+
+set -e
+
+# Check formatting (gofmt -l lists files that need reformatting).
+UNFORMATTED=$(gofmt -l ./...)
+if [ -n "$UNFORMATTED" ]; then
+    echo "error: the following files need formatting (run 'gofmt -w ./...'):"
+    printf '%s\n' "$UNFORMATTED"
+    exit 1
+fi
+
+go vet ./...
+
+if command -v staticcheck > /dev/null 2>&1; then
+    staticcheck ./...
+fi
