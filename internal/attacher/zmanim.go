@@ -1,11 +1,9 @@
 // Package attacher appends zmanim lines to event descriptions for Shabbos,
-// Yom Tov, fast days, Pesach seder night, Tisha B'Av, and Chanuka.
+// Yom Tov, fast days, Pesach seder nights, Tisha B'Av, and Chanuka.
 //
-// Zero-valued zmanim are silently omitted. Some zmanim are conditionally
-// present in the RSS feed: chabad.org includes Chatzos HaLailah only on
-// relevant nights. Misheyakir is always present — the label differs between
-// weekday ("Earliest Tallit and Tefillin") and Shabbos/YT ("Earliest Tallit")
-// but the zman itself is real and relevant for Tallis on Shabbos.
+// Zero-valued zmanim are silently omitted. Misheyakir is always present in
+// the RSS feed — the label differs between weekday and Shabbos/YT but the
+// zman itself is real and relevant for Tallis on Shabbos.
 package attacher
 
 import (
@@ -27,16 +25,26 @@ func AttachZmanim(events []types.HebcalEvent, zmanimMap map[string]types.ZmanimD
 
 		switch {
 		case ev.Category == "candles" && hasZmanim:
-			// Candle lighting: show shkia and tzeis as context.
 			appendZmanim(ev, buildLines(
 				zmanimLine("Shkia", z.Shkiah, tz),
 				zmanimLine("Tzeis", z.Tzeis, tz),
 			))
+			// Append Chatzos HaLailah on seder nights (Pesach I and II).
+			// The zmanim RSS includes this only when it's relevant, but we
+			// further gate on isSederNight to avoid showing it on regular
+			// Shabbos or non-seder YT candle events.
+			if !z.ChatzosHalaila.IsZero() && isSederNight(ev, events, tz) {
+				appendZmanim(ev, fmt.Sprintf("Chatzos HaLailah: %s", fmtTime(z.ChatzosHalaila, tz)))
+			}
 
 		case ev.Category == "havdalah" && hasZmanim:
-			// Motzoei Shabbos/YT: show the Shma window as a range and shkia.
-			// The event title already carries the tosfos offset, e.g. "Havdala (+4): 8:07 PM".
-			// Misheyakir is earliest Shma; LatestShema is the deadline.
+			if parsha := findParshaTitle(events, key, tz); parsha != "" {
+				if ev.Description == "" {
+					ev.Description = parsha
+				} else {
+					ev.Description = parsha + "\n\n" + ev.Description
+				}
+			}
 			appendZmanim(ev, buildLines(
 				zmanimRange("Shma", z.Misheyakir, z.LatestShema, tz),
 				zmanimLine("Shkia", z.Shkiah, tz),
@@ -50,16 +58,52 @@ func AttachZmanim(events []types.HebcalEvent, zmanimMap map[string]types.ZmanimD
 			}
 		}
 
-		if isPesachNight(ev) && hasZmanim && !z.ChatzosHalaila.IsZero() {
-			appendZmanim(ev, fmt.Sprintf("Chatzos HaLailah: %s", fmtTime(z.ChatzosHalaila, tz)))
-		}
-
 		if isChanuka(ev) && hasZmanim {
 			if note := chanukaMenoraNote(ev, events, z, tz); note != "" {
 				appendZmanim(ev, note)
 			}
 		}
 	}
+}
+
+// isSederNight reports whether a candle lighting event falls on a Pesach seder
+// night. Seder nights are:
+//   - The night of Erev Pesach (any co-event on the same date has "Erev Pesach"
+//     in its title).
+//   - The second seder night, indicated by "after" in the candle event title
+//     (rebuildCandle uses "YT candles after" for this case) when a Pesach
+//     holiday event is present on the same date.
+//
+// We do not show Chatzos HaLailah on Shabbos Chol HaMoed Pesach candles or
+// the Pesach VI/VII candle events because those are not seder nights.
+func isSederNight(ev *types.HebcalEvent, allEvents []types.HebcalEvent, tz *time.Location) bool {
+	dateKey := ev.Date.In(tz).Format("2006-01-02")
+	for _, other := range allEvents {
+		if other.Date.In(tz).Format("2006-01-02") != dateKey || !other.AllDay {
+			continue
+		}
+		t := strings.ToLower(other.Title)
+		if strings.Contains(t, "erev pesach") {
+			return true // first seder night
+		}
+		// Second seder: candle event title contains "after" (YT candles after)
+		// and there's a Pesach I all-day event on the same date.
+		if strings.Contains(t, "pesach i") && !strings.Contains(t, "ch''m") &&
+			containsFold(ev.Title, "after") {
+			return true
+		}
+	}
+	return false
+}
+
+// findParshaTitle returns the Title of the parashat event on dateKey, or "".
+func findParshaTitle(events []types.HebcalEvent, dateKey string, tz *time.Location) string {
+	for _, ev := range events {
+		if ev.Category == "parashat" && ev.Date.In(tz).Format("2006-01-02") == dateKey {
+			return ev.Title
+		}
+	}
+	return ""
 }
 
 // zmanimLine returns "Label: TIME" or "" if t is zero.
@@ -148,12 +192,6 @@ func chanukaMenoraNote(ev *types.HebcalEvent, allEvents []types.HebcalEvent, z t
 		fmt.Fprintf(&sb, "  If necessary: from Plag HaMincha (%s) b'dieved.", fmtTime(z.PlagHamincha, tz))
 	}
 	return sb.String()
-}
-
-func isPesachNight(ev *types.HebcalEvent) bool {
-	return ev.Category == "holiday" &&
-		containsFold(ev.Title, "pesach") &&
-		containsFold(ev.HDate, "15 Nisan")
 }
 
 func isChanuka(ev *types.HebcalEvent) bool {

@@ -10,7 +10,7 @@
 //  2. normalizeNames: replaces verbose names with honorifics in Title and
 //     Description.
 //  3. shortenTitles: rewrites verbose SUMMARY to short calendar-friendly form.
-//  4. transliterator.Apply: Ashkenazi substitutions.
+//  4. transliterator.Apply: Ashkenazi substitutions (only if doAshkenazi).
 //  5. applyChitasSummaries: appends Chitas text by (now-normalized) Title.
 //
 // verbose_names in rebbes.json serve two roles:
@@ -18,6 +18,10 @@
 //   - findByVerboseName: year lookup in reformatDescription (name extracted by regex)
 //
 // Both roles require knowing the exact strings the Hebcal feed uses.
+// WARNING: never add a verbose_name that is a substring of the honorific it
+// maps to (e.g. "Tzemach Tzedek" and honorific "the Tzemach Tzedek") because
+// normalizeNames replaces sequentially and a second pass would double-prepend
+// "the".
 package specialdates
 
 import (
@@ -41,13 +45,11 @@ import (
 const specialDatesURL = "https://download.hebcal.com/ical/chabad-special-dates.ics"
 
 // rebbeEntry mirrors one record in rebbes.json.
-// Only HuledesYear, DOBGregorian, HistalkusYear, and HistalkusGregorian are
-// used at runtime. The Hebrew date strings are preserved in JSON for reference.
 type rebbeEntry struct {
 	Honorific          string   `json:"honorific"`
 	VerboseNames       []string `json:"verbose_names"`
 	HuledesYear        int      `json:"huledes_year"`
-	DOBGregorian       string   `json:"dob_gregorian"`
+	HuledesGregorian   string   `json:"huledes_gregorian"`
 	HistalkusYear      int      `json:"histalkus_year"`
 	HistalkusGregorian string   `json:"histalkus_gregorian"`
 }
@@ -68,11 +70,17 @@ var yahrzeitRe = regexp.MustCompile(
 var birthdayRe = regexp.MustCompile(
 	`(.+?) occurs on .+?, corresponding to the (\d+)(?:st|nd|rd|th) of ([A-Za-z]+), (\d+)`)
 
-// yahrzeitTitleRe matches the chabad-special-dates.ics SUMMARY for yahrzeits,
-// which follow the pattern "the NAME's [Nth] Yahrzeit".
-// The ordinal ("106th") is optional — some entries omit it.
-// Group 1: the honorific name (without "the ").
-var yahrzeitTitleRe = regexp.MustCompile(`^the (.+?)'s (?:\d+\w+ )?Yahrzeit`)
+// yahrzeitTitleRe matches chabad-special-dates.ics SUMMARY for yahrzeits.
+// Observed formats (the feed uses U+2019 RIGHT SINGLE QUOTATION MARK, not a
+// straight apostrophe):
+//
+//	"the Rebbe Rashab\u2019s 106th Yahrzeit (2nd of Nisan)"   — with "the" prefix
+//	"Tzemach Tzeddek\u2019s 160th Yahrzeit (13th of Nisan)"   — without prefix
+//
+// [\u2019'] matches both U+2019 and the straight apostrophe for robustness.
+// The trailing " (date)" parenthetical is stripped before matching by
+// shortenTitle. Group 1 captures the name portion (without "the ").
+var yahrzeitTitleRe = regexp.MustCompile("^(?:the )?(.+?)[\u2019']s (?:\\d+\\w+ )?Yahrzeit$")
 
 // birthdayTitleRe matches "Birthday of [the] NAME" after normalizeNames.
 // Group 1: the name (with or without leading "the ").
@@ -125,8 +133,9 @@ func buildNameMap() map[string]string {
 }
 
 // Merge fetches special dates, filters to the given range, and applies the
-// full transformation pipeline.
-func Merge(tzid string, stripNikud bool, rangeStart, rangeEnd time.Time) ([]types.HebcalEvent, error) {
+// full transformation pipeline. doAshkenazi controls whether Ashkenazi
+// transliterations are applied; set to false for he/s/sh modes.
+func Merge(tzid string, stripNikud, doAshkenazi bool, rangeStart, rangeEnd time.Time) ([]types.HebcalEvent, error) {
 	body, err := fetch()
 	if err != nil {
 		return nil, err
@@ -148,7 +157,12 @@ func Merge(tzid string, stripNikud bool, rangeStart, rangeEnd time.Time) ([]type
 
 	normalizeNames(events, buildNameMap())
 	shortenTitles(events)
-	transliterator.Apply(events, stripNikud)
+
+	if doAshkenazi {
+		transliterator.Apply(events, stripNikud)
+	} else if stripNikud {
+		transliterator.Apply(events, true)
+	}
 
 	if err := applyChitasSummaries(events); err != nil {
 		fmt.Printf("Warning: Chitas summaries: %v\n", err)
@@ -169,17 +183,13 @@ func normalizeNames(events []types.HebcalEvent, names map[string]string) {
 // shortenTitles rewrites verbose SUMMARY values into short calendar titles.
 // Runs after normalizeNames so honorifics are already in place.
 //
-// The chabad-special-dates.ics SUMMARY format is:
-//   - "the Rebbe Rashab's 106th Yahrzeit (2nd of Nisan)"
-//   - "Birthday of the Rebbe (11th of Nisan)"
+// Feed formats → output:
 //
-// After normalizeNames, verbose rebbe names become honorifics. After
-// shortenTitles:
-//   - "the Rebbe Rashab's 106th Yahrzeit (2nd of Nisan)" → "Rebbe Rashab's Histalkus"
-//   - "Birthday of the Rebbe (11th of Nisan)"            → "Rebbe's Birthday"
+//	"the Rebbe Rashab\u2019s 106th Yahrzeit (2nd of Nisan)" → "Rebbe Rashab's Histalkus"
+//	"Tzemach Tzeddek\u2019s 160th Yahrzeit (13th of Nisan)" → "Tzemach Tzedek's Histalkus"
+//	"Birthday of the Rebbe (11th of Nisan)"                 → "Rebbe's Birthday"
 //
-// Leading "the" is dropped in possessive constructions — "the Rebbe's Birthday"
-// is natural speech but looks odd as a standalone calendar title.
+// Leading "the" is dropped in possessive constructions.
 func shortenTitles(events []types.HebcalEvent) {
 	for i := range events {
 		ev := &events[i]
@@ -188,15 +198,13 @@ func shortenTitles(events []types.HebcalEvent) {
 }
 
 // shortenTitle converts one verbose feed SUMMARY into a short calendar title.
-// The feed appends " (date)" parentheticals such as " (2nd of Nisan)"; these
-// are stripped before pattern matching so ordinal-plus-date variants are handled.
+// Strips trailing " (date)" parentheticals before regex matching.
+// Output uses a straight apostrophe (U+0027) regardless of input.
 func shortenTitle(s string) string {
-	// Strip trailing " (date)" parenthetical before matching, e.g. " (2nd of Nisan)".
 	base := s
 	if idx := strings.LastIndex(s, " ("); idx > 0 && strings.HasSuffix(s, ")") {
 		base = s[:idx]
 	}
-
 	if m := yahrzeitTitleRe.FindStringSubmatch(base); m != nil {
 		return m[1] + "'s Histalkus"
 	}
@@ -270,18 +278,12 @@ func convertEvent(ev *ical.VEvent, tz *time.Location) *types.HebcalEvent {
 //
 // Histalkus (yahrzeit):
 //
-//	"Hebcal joins you in remembering NAME, whose Nth Yahrzeit occurs on
-//	DAY, DATE, corresponding to the ORD of HMONTH, HYEAR."
-//	→ "Histalkus of NAME at age AGE on DAY HMONTH HISTALKUS_YEAR (DOB_GREG) — N years ago"
-//
-// The parenthetical holds the Gregorian DOB (birth date), giving biographical
-// context on the yahrzeit. After normalizeNames, NAME becomes the honorific.
+//	→ "Histalkus of NAME at age AGE on DAY HMONTH YEAR (DOD_GREG) — N years ago"
 //
 // Birthday:
 //
-//	"Birthday of X occurs on DAY, DATE, corresponding to the ORD of HMONTH, HYEAR."
-//	→ "Birthday of X on DAY HMONTH HULEDES_YEAR (DOB_GREG) — N years ago"  (year known)
-//	→ "Birthday of X on DAY HMONTH OBSERVANCE_YEAR"                         (year unknown)
+//	→ "Birthday of NAME on DAY HMONTH HULEDES_YEAR (DOB_GREG) — N years ago"
+//	→ "Birthday of NAME on DAY HMONTH OBSERVANCE_YEAR"  (year unknown)
 func reformatDescription(s string) string {
 	if m := yahrzeitRe.FindStringSubmatch(s); m != nil {
 		name := strings.TrimSpace(m[1])
@@ -290,17 +292,17 @@ func reformatDescription(s string) string {
 		hyear, _ := strconv.Atoi(m[5])
 		histalkusYear := hyear - n
 
-		age, dobParens := "", ""
+		age, dodParens := "", ""
 		if e := findByVerboseName(name, histalkusYear); e != nil {
 			if e.HuledesYear > 0 {
 				age = fmt.Sprintf(" at age %d", histalkusYear-e.HuledesYear)
 			}
-			if e.DOBGregorian != "" {
-				dobParens = " (" + formatGregorian(e.DOBGregorian) + ")"
+			if e.HistalkusGregorian != "" {
+				dodParens = " (" + formatGregorian(e.HistalkusGregorian) + ")"
 			}
 		}
 		return fmt.Sprintf("Histalkus of %s%s on %s %s %d%s — %d years ago",
-			name, age, dayNum, hmonth, histalkusYear, dobParens, n)
+			name, age, dayNum, hmonth, histalkusYear, dodParens, n)
 	}
 
 	if m := birthdayRe.FindStringSubmatch(s); m != nil {
@@ -311,8 +313,8 @@ func reformatDescription(s string) string {
 		if e := findByVerboseName(verboseName, 0); e != nil && e.HuledesYear > 0 {
 			n := hyear - e.HuledesYear
 			dobParens := ""
-			if e.DOBGregorian != "" {
-				dobParens = " (" + formatGregorian(e.DOBGregorian) + ")"
+			if e.HuledesGregorian != "" {
+				dobParens = " (" + formatGregorian(e.HuledesGregorian) + ")"
 			}
 			return fmt.Sprintf("Birthday of %s on %s %s %d%s — %d years ago",
 				verboseName, dayNum, hmonth, e.HuledesYear, dobParens, n)
@@ -328,8 +330,7 @@ func reformatDescription(s string) string {
 	return strings.TrimSpace(s)
 }
 
-// formatGregorian parses "2006-01-02" and returns "02 Jan 2006" (zero-padded
-// day, abbreviated month, four-digit year).
+// formatGregorian parses "2006-01-02" and returns "02 Jan 2006".
 func formatGregorian(iso string) string {
 	t, err := time.Parse("2006-01-02", iso)
 	if err != nil {

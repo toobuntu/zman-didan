@@ -61,15 +61,11 @@ func Run(cfg types.Config) error {
 		}
 	}
 
-	// Drop timed fast-begin/end events that Hebcal returns via c=on. We
-	// synthesise our own timed events in fastday.Build using Chabad-
-	// authoritative times from chabad.org. Keeping both would produce
-	// duplicate events with slightly different times and no alarms on the
-	// Hebcal version. The all-day fast event is kept; it drives fastday.Build.
+	// Drop timed fast-begin/end events from Hebcal (c=on). fastday.Build
+	// synthesises replacements with Chabad-authoritative zmanim and alarms.
 	events = dropTimedHebcalFastEvents(events)
 
-	// 2. Chabad candle lighting + havdalah.
-	// The candle ICS is always fetched from chabad.org; it is not cached.
+	// 2. Chabad candle lighting + havdalah (always fetched; not cached).
 	fmt.Println("Fetching candle lighting from chabad.org...")
 	zmCache := cache.New()
 	if !cfg.Refresh {
@@ -85,7 +81,7 @@ func Run(cfg types.Config) error {
 	}
 	fmt.Printf("  %d candle/havdalah entries\n", len(candleTimes))
 
-	// 3. Zmanim per relevant date (disk-cached; reports cache vs network).
+	// 3. Zmanim per relevant date (disk-cached).
 	zmanimDates := collectZmanimDates(events, loc.TZID)
 	total := len(zmanimDates)
 	zmanimMap := make(map[string]types.ZmanimDay, total)
@@ -129,10 +125,12 @@ func Run(cfg types.Config) error {
 
 	cleaner.Clean(events)
 
-	// Special dates: always fetched from Hebcal; filtered to calendar range.
+	// Special dates: always fetched; filtered to calendar date range.
+	// calendarDateRange uses midnight boundaries so that all-day events
+	// at midnight are not excluded by timed events on the same start date.
 	fmt.Println("Fetching Chabad special dates from Hebcal...")
 	rangeStart, rangeEnd := calendarDateRange(events, loc.TZID)
-	special, err := specialdates.Merge(loc.TZID, stripNikud, rangeStart, rangeEnd)
+	special, err := specialdates.Merge(loc.TZID, stripNikud, useAshkenazi(cfg.Lang), rangeStart, rangeEnd)
 	if err != nil {
 		fmt.Printf("Warning: special dates: %v\n", err)
 	} else {
@@ -157,11 +155,8 @@ func Run(cfg types.Config) error {
 	return nil
 }
 
-// dropTimedHebcalFastEvents removes timed fast-begin and fast-end events that
-// Hebcal returns via c=on alongside the all-day fast event. These are identified
-// by being timed (AllDay=false) with Subcat=="fast" — the same combination that
-// fastday.Build uses to synthesise its own versions with Chabad-authoritative
-// times and configured alarms.
+// dropTimedHebcalFastEvents removes timed fast-begin/end events from Hebcal.
+// fastday.Build synthesises replacements. The all-day fast event is kept.
 func dropTimedHebcalFastEvents(events []types.HebcalEvent) []types.HebcalEvent {
 	out := make([]types.HebcalEvent, 0, len(events))
 	for _, ev := range events {
@@ -243,15 +238,19 @@ func candleStartDate(events []types.HebcalEvent, loc types.Location) string {
 	return "9/1/2025"
 }
 
+// calendarDateRange returns midnight of the first and last event calendar dates.
+// Midnight boundaries ensure all-day events (which parse as midnight) are not
+// excluded by timed events that fall later on the same start date.
 func calendarDateRange(events []types.HebcalEvent, tzid string) (start, end time.Time) {
 	tz, _ := time.LoadLocation(tzid)
 	for _, ev := range events {
 		d := ev.Date.In(tz)
-		if start.IsZero() || d.Before(start) {
-			start = d
+		dayMidnight := time.Date(d.Year(), d.Month(), d.Day(), 0, 0, 0, 0, tz)
+		if start.IsZero() || dayMidnight.Before(start) {
+			start = dayMidnight
 		}
-		if end.IsZero() || d.After(end) {
-			end = d
+		if end.IsZero() || dayMidnight.After(end) {
+			end = dayMidnight
 		}
 	}
 	return

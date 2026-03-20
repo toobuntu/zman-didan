@@ -162,12 +162,18 @@ func splitLabel(s string) []string {
 
 // CandleDay holds the candle lighting and havdalah times for one calendar date.
 // The map key is "YYYY-MM-DD" in the location's local timezone.
-// AfterHavdala is true when chabad.org labels the entry "Light Holiday Candles
-// after", indicating second-day Yom Tov candles lit after Havdalah.
+//
+// IsYomTov distinguishes "Light Holiday Candles" (YT) from "Light Shabbat
+// Candles" (Shabbos), enabling the patcher to produce "YT candles" vs
+// "Sh candles" in the event SUMMARY.
+//
+// AfterHavdala is true for "Light Holiday Candles after" — second-night Yom
+// Tov candles that must be lit after Havdalah from the first day.
 type CandleDay struct {
 	Candles      time.Time
 	Havdalah     time.Time
-	AfterHavdala bool // second-night YT: candles lit after Havdalah
+	IsYomTov     bool
+	AfterHavdala bool
 }
 
 // Client fetches from chabad.org.
@@ -447,13 +453,14 @@ func parseCandleICS(body []byte, tzid string) (map[string]CandleDay, error) {
 		text := summary.Value
 		day := result[dateKey]
 		switch {
+		case strings.Contains(text, "Light Holiday Candles"):
+			day.Candles = localTime
+			day.IsYomTov = true
+			day.AfterHavdala = strings.Contains(text, " after")
 		case strings.Contains(text, "Light Shabbat Candles"),
-			strings.Contains(text, "Light Holiday Candles"),
 			strings.Contains(text, "Light Candles"):
 			day.Candles = localTime
-			// "Light Holiday Candles after" means second-night YT candles are
-			// lit after Havdalah from the first night.
-			day.AfterHavdala = strings.Contains(text, " after")
+			// IsYomTov=false (Shabbos or generic)
 		case strings.Contains(text, "Shabbat Ends"),
 			strings.Contains(text, "Holiday Ends"),
 			strings.Contains(text, "Yom Tov Ends"):

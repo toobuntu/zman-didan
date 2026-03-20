@@ -3,8 +3,8 @@
     "honorific": "the Baal Shem Tov",
     "verbose_names": ["Baal Shem Tov"],
     "huledes_year": 5458,
-    "dob_hebrew": "18 Elul 5458",
-    "dob_gregorian": "1698-08-27",
+    "huledes_hebrew": "18 Elul 5458",
+    "huledes_gregorian": "1698-08-27",
     "histalkus_year": 5520,
     "histalkus_hebrew": "6 Sivan 5520",
     "histalkus_gregorian": "1760-05-23"
@@ -13,38 +13,48 @@
     "honorific": "the Alter Rebbe",
     "verbose_names": ["R. Schneur Zalman of Liadi"],
     "huledes_year": 5505,
-    "dob_hebrew": "18 Elul 5505",
-    "dob_gregorian": "1745-09-04",
+    "huledes_hebrew": "18 Elul 5505",
+    "huledes_gregorian": "1745-09-04",
     "histalkus_year": 5572,
     "histalkus_hebrew": "24 Tevet 5572",
     "histalkus_gregorian": "1812-12-27"
   },
   {
     "honorific": "the Mitteler Rebbe",
-    "verbose_names": ["R. DovBer Schneuri", "R. Dovber Schneuri"],
+    "verbose_names": [
+      "R. DovBer Schneuri",
+      "R. Dovber Schneuri",
+      "R. DovBer of Lubavitch"
+    ],
     "huledes_year": 5534,
-    "dob_hebrew": "9 Kislev 5534",
-    "dob_gregorian": "1773-11-09",
+    "huledes_hebrew": "9 Kislev 5534",
+    "huledes_gregorian": "1773-11-09",
     "histalkus_year": 5588,
     "histalkus_hebrew": "9 Kislev 5588",
     "histalkus_gregorian": "1827-11-16"
   },
   {
     "honorific": "the Tzemach Tzedek",
-    "verbose_names": ["R. Menachem Mendel Schneersohn"],
+    "verbose_names": [
+      "R. Menachem Mendel Schneersohn",
+      "Tzemach Tzeddek"
+    ],
     "huledes_year": 5549,
-    "dob_hebrew": "29 Elul 5549",
-    "dob_gregorian": "1789-09-09",
+    "huledes_hebrew": "29 Elul 5549",
+    "huledes_gregorian": "1789-09-09",
     "histalkus_year": 5626,
     "histalkus_hebrew": "13 Nisan 5626",
     "histalkus_gregorian": "1866-04-01"
   },
   {
     "honorific": "the Rebbe Maharash",
-    "verbose_names": ["R. Shmuel Schneersohn"],
+    "verbose_names": [
+      "R. Shmuel Schneersohn",
+      "R. Shmuel of Lubavitch"
+    ],
     "huledes_year": 5594,
-    "dob_hebrew": "2 Iyar 5594",
-    "dob_gregorian": "1834-05-02",
+    "huledes_hebrew": "2 Iyar 5594",
+    "huledes_gregorian": "1834-05-02",
     "histalkus_year": 5643,
     "histalkus_hebrew": "13 Tishrei 5643",
     "histalkus_gregorian": "1882-10-04"
@@ -57,18 +67,21 @@
       "R. Sholom DovBer of Lubavitch"
     ],
     "huledes_year": 5621,
-    "dob_hebrew": "20 Cheshvan 5621",
-    "dob_gregorian": "1860-11-04",
+    "huledes_hebrew": "20 Cheshvan 5621",
+    "huledes_gregorian": "1860-11-04",
     "histalkus_year": 5680,
     "histalkus_hebrew": "2 Nisan 5680",
     "histalkus_gregorian": "1920-03-21"
   },
   {
     "honorific": "the Frierdiker Rebbe",
-    "verbose_names": ["R. Yosef Yitzchak Schneersohn"],
+    "verbose_names": [
+      "R. Yosef Yitzchak Schneersohn",
+      "R. Yosef Yitzchak of Lubavitch"
+    ],
     "huledes_year": 5640,
-    "dob_hebrew": "12 Tammuz 5640",
-    "dob_gregorian": "1880-06-21",
+    "huledes_hebrew": "12 Tammuz 5640",
+    "huledes_gregorian": "1880-06-21",
     "histalkus_year": 5710,
     "histalkus_hebrew": "10 Shevat 5710",
     "histalkus_gregorian": "1950-01-28"
@@ -77,18 +90,21 @@
     "honorific": "Rebbetzin Chana",
     "verbose_names": ["Rebbetzin Chana Schneerson"],
     "huledes_year": 5640,
-    "dob_hebrew": "28 Nisan 5640",
-    "dob_gregorian": "1880-04-28",
+    "huledes_hebrew": "28 Nisan 5640",
+    "huledes_gregorian": "1880-04-28",
     "histalkus_year": 5725,
     "histalkus_hebrew": "6 Tishrei 5725",
     "histalkus_gregorian": "1964-10-12"
   },
   {
     "honorific": "the Rebbe",
-    "verbose_names": ["R. Menachem Mendel Schneerson"],
+    "verbose_names": [
+      "R. Menachem Mendel Schneerson",
+      "Lubavitcher Rebbe R. Menachem M. Schneerson"
+    ],
     "huledes_year": 5662,
-    "dob_hebrew": "11 Nisan 5662",
-    "dob_gregorian": "1902-04-18",
+    "huledes_hebrew": "11 Nisan 5662",
+    "huledes_gregorian": "1902-04-18",
     "histalkus_year": 5754,
     "histalkus_hebrew": "3 Tammuz 5754",
     "histalkus_gregorian": "1994-06-12"
@@ -97,8 +113,8 @@
     "honorific": "the Rebbetzin",
     "verbose_names": ["Rebbetzin Chaya Mushka Schneerson"],
     "huledes_year": 5661,
-    "dob_hebrew": "25 Adar 5661",
-    "dob_gregorian": "1901-03-16",
+    "huledes_hebrew": "25 Adar 5661",
+    "huledes_gregorian": "1901-03-16",
     "histalkus_year": 5748,
     "histalkus_hebrew": "22 Shevat 5748",
     "histalkus_gregorian": "1988-02-13"
@@ -107,8 +123,8 @@
     "honorific": "R. Levi Yitzchak Schneerson",
     "verbose_names": ["R. Levi Yitzchak Schneerson"],
     "huledes_year": 5638,
-    "dob_hebrew": "17 Nisan 5638",
-    "dob_gregorian": "1878-04-20",
+    "huledes_hebrew": "17 Nisan 5638",
+    "huledes_gregorian": "1878-04-20",
     "histalkus_year": 5704,
     "histalkus_hebrew": "20 Av 5704",
     "histalkus_gregorian": "1944-08-09"
