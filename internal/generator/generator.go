@@ -24,7 +24,6 @@ import (
 	"github.com/toobuntu/zman-didan/internal/types"
 )
 
-// useAshkenazi reports whether the Ashkenazi substitution table should run.
 func useAshkenazi(lang string) bool {
 	switch lang {
 	case "a", "ah", "ah-x-NoNikud":
@@ -35,6 +34,13 @@ func useAshkenazi(lang string) bool {
 
 // Run executes the full pipeline for cfg and writes the .ics file.
 func Run(cfg types.Config) error {
+	outPath := outputPath(cfg)
+	if cfg.NoClobber {
+		if _, err := os.Stat(outPath); err == nil {
+			return fmt.Errorf("output file already exists (use --refresh or remove it): %s", outPath)
+		}
+	}
+
 	// 1. Hebcal.
 	if cfg.UsingDateRange() {
 		fmt.Printf("Fetching Hebcal calendar %s → %s...\n",
@@ -56,7 +62,8 @@ func Run(cfg types.Config) error {
 	}
 
 	// 2. Chabad candle lighting + havdalah.
-	fmt.Println("Fetching Chabad candle lighting times...")
+	// The candle ICS is always fetched from chabad.org; it is not cached.
+	fmt.Println("Fetching candle lighting from chabad.org...")
 	zmCache := cache.New()
 	if !cfg.Refresh {
 		if err := zmCache.Prune(); err != nil {
@@ -71,10 +78,9 @@ func Run(cfg types.Config) error {
 	}
 	fmt.Printf("  %d candle/havdalah entries\n", len(candleTimes))
 
-	// 3. Zmanim per relevant date. Report cache hits and network fetches separately.
+	// 3. Zmanim per relevant date (disk-cached; reports cache vs network).
 	zmanimDates := collectZmanimDates(events, loc.TZID)
 	total := len(zmanimDates)
-	fmt.Printf("Loading zmanim for %d dates...\n", total)
 	zmanimMap := make(map[string]types.ZmanimDay, total)
 	var nCached, nFetched int
 	for _, d := range zmanimDates {
@@ -90,16 +96,17 @@ func Run(cfg types.Config) error {
 			nFetched++
 		}
 	}
-	if nFetched > 0 && nCached > 0 {
-		fmt.Printf("  %d from cache, %d fetched from chabad.org\n", nCached, nFetched)
-	} else if nFetched > 0 {
-		fmt.Printf("  %d fetched from chabad.org\n", nFetched)
-	} else {
-		fmt.Printf("  %d read from cache\n", nCached)
+	switch {
+	case nFetched > 0 && nCached > 0:
+		fmt.Printf("  %d zmanim (%d from chabad.org, %d from cache)\n", total, nFetched, nCached)
+	case nFetched > 0:
+		fmt.Printf("  Fetched %d zmanim from chabad.org\n", nFetched)
+	default:
+		fmt.Printf("  %d zmanim (all from cache)\n", nCached)
 	}
 
 	// 4–12. Pipeline stages.
-	patcher.PatchCandles(events, candleTimes, loc.TZID)
+	patcher.PatchCandles(events, candleTimes, loc.TZID, cfg.Tosfos)
 	attacher.AttachZmanim(events, zmanimMap, loc.TZID)
 	events = append(events, fastday.Build(events, zmanimMap, cfg.LocationID(), loc.TZID)...)
 	alarm.Rebuild(events)
@@ -115,7 +122,8 @@ func Run(cfg types.Config) error {
 
 	cleaner.Clean(events)
 
-	fmt.Println("Loading Chabad special dates...")
+	// Special dates: always fetched from Hebcal; filtered to calendar range.
+	fmt.Println("Fetching Chabad special dates from Hebcal...")
 	rangeStart, rangeEnd := calendarDateRange(events, loc.TZID)
 	special, err := specialdates.Merge(loc.TZID, stripNikud, rangeStart, rangeEnd)
 	if err != nil {
@@ -129,7 +137,6 @@ func Run(cfg types.Config) error {
 		return events[i].Date.Before(events[j].Date)
 	})
 
-	outPath := outputPath(cfg)
 	f, err := os.Create(outPath)
 	if err != nil {
 		return fmt.Errorf("creating output file %s: %w", outPath, err)

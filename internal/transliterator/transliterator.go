@@ -1,98 +1,56 @@
-// Package transliterator applies Ashkenazi substitutions to event Title and
-// Description fields, and optionally strips Hebrew nikud (vowel points).
+// Package transliterator applies Ashkenazi substitutions to event Title,
+// Description, and Memo fields, and optionally strips Hebrew nikud.
 //
-// The substitution table is applied longest-match-first to prevent partial
-// replacements (e.g. "Shemini Atzeres" must replace before "Atzeres" alone).
+// The substitution table is loaded from the embedded transliterations.json
+// and applied longest-source-first to prevent partial replacements
+// (e.g. "Shemini Atzeres" must replace before "Atzeres" alone).
 package transliterator
 
 import (
+	"encoding/json"
+	"fmt"
+	"os"
 	"sort"
 	"strings"
+	"sync"
 	"unicode"
 
+	"github.com/toobuntu/zman-didan/internal/embeddata"
 	"github.com/toobuntu/zman-didan/internal/types"
 )
 
-// substitutions maps Sephardic/modern/JPS forms to Ashkenazi forms.
-// Order here does not matter — Apply sorts by length before substituting.
-var substitutions = [][2]string{
-	// Seforim names
-	{"Genesis", "Bereishis"},
-	{"Exodus", "Shemos"},
-	{"Leviticus", "Vayikra"},
-	{"Numbers", "Bamidbar"},
-	{"Deuteronomy", "Devarim"},
-	// Nevi'im names
-	{"Jeremiah", "Yirmiyahu"},
-	{"Ezekiel", "Yechezkel"},
-	{"Isaiah", "Yeshayahu"},
-	{"I Samuel", "I Shmuel"},
-	{"II Samuel", "II Shmuel"},
-	{"I Kings", "I Melachim"},
-	{"II Kings", "II Melachim"},
-	{"Zechariah", "Zecharya"},
-	{"Malachi", "Malachi"},
-	{"Hosea", "Hoshea"},
-	{"Amos", "Amos"},
-	{"Obadiah", "Ovadya"},
-	{"Jonah", "Yonah"},
-	{"Micah", "Micha"},
-	{"Nahum", "Nachum"},
-	{"Habakkuk", "Chavakuk"},
-	{"Zephaniah", "Tzefanya"},
-	{"Haggai", "Chagai"},
-	// Holiday names
-	{"Shemini Atzeret", "Shemini Atzeres"},
-	{"Simchat Torah", "Simchas Torah"},
-	{"Sukkot", "Succos"},
-	{"Shavuot", "Shavuos"},
-	{"Rosh HaShanah", "Rosh Hashana"},
-	{"Rosh HaShana", "Rosh Hashana"},
-	{"Rosh Hashana", "Rosh Hashana"},
-	{"Hanukkah", "Chanuka"},
-	{"Chanukah", "Chanuka"},
-	// Parsha names (Sephardic → Ashkenazi)
-	{"Vezot Haberakhah", "V'Zos Habracha"},
-	{"Beha'alotcha", "Beha'alosecha"},
-	{"Achrei Mot", "Acharei Mos"},
-	{"Bechukotai", "Bechukosai"},
-	{"Ki Teitzei", "Ki Seitzei"},
-	{"Lech-Lecha", "Lech Lecha"},
-	{"Vayetzei", "Vayeitzei"},
-	{"Vayeshev", "Vayeishev"},
-	{"Vaetchanan", "Va'eschanan"},
-	{"Bereishit", "Bereishis"},
-	{"Bereshit", "Bereishis"},
-	{"Ha'Azinu", "Ha'azinu"},
-	{"Miketz", "Mikeitz"},
-	{"Ki Tavo", "Ki Savo"},
-	{"Ki Tisa", "Ki Sisa"},
-	{"Toldot", "Toldos"},
-	{"Vayera", "Vayeira"},
-	{"Shemot", "Shemos"},
-	{"Vaera", "Va'eira"},
-	{"Yitro", "Yisro"},
-	{"Shmini", "Shemini"},
-	{"Chukat", "Chukas"},
-	{"Matot", "Matos"},
-	{"Nasso", "Naso"},
-	// Terms
-	{"Haftarah", "Haftorah"},
-	{"Haftara", "Haftorah"},
-	{"Shabbat", "Shabbos"},
-	{"Havdalah", "Havdala"},
+var (
+	tableOnce sync.Once
+	table     [][2]string
+)
+
+// loadTable parses transliterations.json and sorts longest-source-first.
+// Called once; result is cached in the package-level table variable.
+func loadTable() [][2]string {
+	tableOnce.Do(func() {
+		var pairs [][2]string
+		if err := json.Unmarshal(embeddata.TransliterationsJSON, &pairs); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: loading transliterations.json: %v\n", err)
+			return
+		}
+		sort.Slice(pairs, func(i, j int) bool {
+			return len(pairs[i][0]) > len(pairs[j][0])
+		})
+		table = pairs
+	})
+	return table
 }
 
 // Apply runs the Ashkenazi substitution table over all event Title,
 // Description, and Memo fields. If stripNikud is true, Hebrew nikud
 // codepoints (U+05B0–U+05C7) are also removed.
 func Apply(events []types.HebcalEvent, stripNikud bool) {
-	table := buildTable()
+	t := loadTable()
 	for i := range events {
 		ev := &events[i]
-		ev.Title = applyTable(ev.Title, table)
-		ev.Description = applyTable(ev.Description, table)
-		ev.Memo = applyTable(ev.Memo, table)
+		ev.Title = applyTable(ev.Title, t)
+		ev.Description = applyTable(ev.Description, t)
+		ev.Memo = applyTable(ev.Memo, t)
 		if stripNikud {
 			ev.Title = removeNikud(ev.Title)
 			ev.Hebrew = removeNikud(ev.Hebrew)
@@ -101,17 +59,8 @@ func Apply(events []types.HebcalEvent, stripNikud bool) {
 	}
 }
 
-func buildTable() [][2]string {
-	table := make([][2]string, len(substitutions))
-	copy(table, substitutions)
-	sort.Slice(table, func(i, j int) bool {
-		return len(table[i][0]) > len(table[j][0])
-	})
-	return table
-}
-
-func applyTable(s string, table [][2]string) string {
-	for _, pair := range table {
+func applyTable(s string, t [][2]string) string {
+	for _, pair := range t {
 		s = strings.ReplaceAll(s, pair[0], pair[1])
 	}
 	return s

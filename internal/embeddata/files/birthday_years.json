@@ -1,0 +1,18 @@
+{
+  "_comment": "Birth Hebrew years for known figures. Keys use the verbose name form as it appears in chabad-special-dates.ics DESCRIPTION fields (before rebbe_names.json normalization is applied), prefixed with 'Birthday of '. See specialdates/merge.go reformatDescription for usage.",
+
+  "Birthday of R. Schneur Zalman of Liadi":     5505,
+  "Birthday of R. DovBer Schneuri":             5534,
+  "Birthday of R. Dovber Schneuri":             5534,
+  "Birthday of R. Menachem Mendel Schneersohn": 5549,
+  "Birthday of R. Shmuel Schneersohn":          5594,
+  "Birthday of R. Shalom DovBer Schneersohn":   5621,
+  "Birthday of R. Sholom Dovber Schneersohn":   5621,
+  "Birthday of R. Sholom DovBer of Lubavitch":  5621,
+  "Birthday of R. Yosef Yitzchak Schneersohn":  5640,
+  "Birthday of R. Menachem Mendel Schneerson":  5662,
+  "Birthday of R. Levi Yitzchak Schneerson":    5638,
+  "Birthday of Rebbetzin Chana Schneerson":     5640,
+
+  "Birthday of Baal Shem Tov":                  5458
+}

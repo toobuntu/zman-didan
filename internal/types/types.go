@@ -37,7 +37,7 @@ type HebcalEvent struct {
 	Hebrew      string
 	Description string
 	Memo        string
-	Link        string // not written to output; retained for internal use only
+	Link        string // not written to iCal output; retained for internal use
 	HDate       string
 	Slug        string
 	Leyning     *Leyning
@@ -56,8 +56,18 @@ type Leyning struct {
 // ZmanimDay holds halachic times for a single date from chabad.org RSS.
 // All Time fields are in the location's local timezone.
 // ChatzosHalaila falls after midnight — its calendar date is date+1.
-// Fields may be zero if chabad.org did not include them for that day
-// (e.g. Misheyakir is omitted on Shabbos since Tefillin is not worn).
+//
+// Misheyakir label differs by day type:
+//   - Weekday:    "Earliest Tallit and Tefillin (Misheyakir)"
+//   - Shabbos/YT: "Earliest Tallit (Misheyakir)"
+//
+// Both variants are valid — Tallis is worn on Shabbos. The RSS uses the
+// shorter label because Tefillin is not worn, but the zman itself is
+// fully relevant for the earliest time to don a Tallis.
+//
+// Events holds times from RSS labels that do not map to a canonical field:
+// chametz deadlines on Erev Pesach, fast-start markers, contextual "ends"
+// labels that also carry semantic meaning, etc. Keys are normalised labels.
 type ZmanimDay struct {
 	Date           time.Time
 	Alos           time.Time
@@ -70,15 +80,16 @@ type ZmanimDay struct {
 	Tzeis          time.Time
 	ChatzosHalaila time.Time
 	ShaahZmanitMin float64
+	Events         map[string]time.Time // normalised label → time
 }
 
 // LocationMode describes how the user specified their location.
 type LocationMode int
 
 const (
-	LocationZIP      LocationMode = iota // --zip
-	LocationLatLon                       // --lat + --lon + --tzid + --name
-	LocationGeoName                      // --geoname (GeoNames.org numeric ID)
+	LocationZIP     LocationMode = iota // --zip
+	LocationLatLon                      // --lat + --lon + --tzid + --name
+	LocationGeoName                     // --geoname (GeoNames.org numeric ID)
 )
 
 // Config holds the validated, parsed CLI arguments for a single run.
@@ -89,17 +100,19 @@ type Config struct {
 	Lon          float64
 	TZID         string
 	GeoNameID    string
-	Name         string // display name — required for LatLon (chabad.org n= param)
+	Name         string
 
 	Year      int
 	StartDate time.Time
 	EndDate   time.Time
 
-	Lang    string
-	Candles int
-	Output  string
-	Refresh bool
-	Emojis  bool // include Hebcal-style emoji prefixes in SUMMARY
+	Lang      string
+	Candles   int  // minutes before shkiah for candle lighting (default 25)
+	Tosfos    int  // minutes added to havdala for tosfos Shabbos (default 4)
+	Output    string
+	Refresh   bool // bypass all caches
+	Emojis    bool // prefix SUMMARY with Hebcal-style emoji (default true)
+	NoClobber bool // refuse to overwrite existing output file
 }
 
 // UsingDateRange reports whether an explicit date range was specified.

@@ -3,7 +3,8 @@
 // Cache file: ~/.cache/didan/zmanim.json
 // Keys:       "YYYY-MM-DD|ZIP"
 // Eviction:   entries whose date is strictly before today are pruned on every
-//             write, and on an explicit Prune call.
+//
+//	write, and on an explicit Prune call.
 package cache
 
 import (

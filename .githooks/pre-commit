@@ -1,19 +1,67 @@
 #!/bin/sh
-# Pre-commit hook: format check, vet, and lint.
-# Install: git config core.hooksPath .githooks
+# SPDX-FileCopyrightText: 2026 toobuntu
+# SPDX-License-Identifier: GPL-3.0-or-later
 
 set -e
 
-# Check formatting (gofmt -l lists files that need reformatting).
-UNFORMATTED=$(gofmt -l ./...)
-if [ -n "$UNFORMATTED" ]; then
-    echo "error: the following files need formatting (run 'gofmt -w ./...'):"
-    printf '%s\n' "$UNFORMATTED"
-    exit 1
+staged() { git diff --cached --name-only --diff-filter=ACM | grep -E "$1" || true; }
+
+# Format staged Go files in place and re-stage.
+go_files=$(staged '\.go$')
+if [ -n "$go_files" ]; then
+    printf '%s\n' "$go_files" | while IFS= read -r f; do
+        gofmt -w "$f"
+        git add "$f"
+    done
 fi
 
+# Vet all packages (not just staged — a staged file may affect other packages).
 go vet ./...
 
-if command -v staticcheck > /dev/null 2>&1; then
+# staticcheck if available.
+if command -v staticcheck >/dev/null 2>&1; then
     staticcheck ./...
+fi
+
+# Lint staged workflow files with actionlint if available.
+workflow_files=$(staged '\.github/workflows/.*\.yml$')
+if [ -n "$workflow_files" ]; then
+    if command -v actionlint >/dev/null 2>&1; then
+        printf '%s\n' "$workflow_files" | xargs actionlint
+    else
+        echo "warning: actionlint not found — skipping workflow lint (brew install actionlint)"
+    fi
+fi
+
+# REUSE compliance check.
+if command -v reuse >/dev/null 2>&1; then
+    if ! reuse lint --quiet; then
+        reuse lint
+        cat >&2 << 'HINT'
+
+To annotate unannotated files, run:
+
+  files=$(reuse lint --json \
+    | jq -r '.non_compliant
+      | add(.missing_copyright_info, .missing_licensing_info)
+      | unique[]')
+
+  if [ -n "$files" ]; then
+    annotate() {
+        xargs -r reuse annotate \
+            --copyright="toobuntu" \
+            --merge-copyrights \
+            --license=GPL-3.0-or-later \
+            --copyright-prefix=spdx-string \
+            "$@"
+    }
+
+    printf '%s\n' "$files" | grep -E '\.go$'   | annotate --style=go
+    printf '%s\n' "$files" | grep -vE '\.go$'  | annotate --fallback-dot-license
+  fi
+HINT
+        exit 1
+    fi
+else
+    echo "warning: reuse not found — skipping REUSE compliance check (pip install reuse)"
 fi

@@ -1,10 +1,11 @@
 // Package attacher appends zmanim lines to event descriptions for Shabbos,
 // Yom Tov, fast days, Pesach seder night, Tisha B'Av, and Chanuka.
 //
-// Zero-valued zmanim (time.Time{}) are silently omitted. chabad.org omits
-// certain zmanim on days they are halachically irrelevant — for example,
-// Misheyakir (Earliest Tallit and Tefillin) is not included on Shabbos
-// since Tefillin is not worn. Displaying "—" for such times is unhelpful.
+// Zero-valued zmanim are silently omitted. Some zmanim are conditionally
+// present in the RSS feed: chabad.org includes Chatzos HaLailah only on
+// nights where it is relevant, and ChatzosHalaila is absent for most dates.
+// ZmanimDay.Misheyakir is always present (both weekday and Shabbos/YT),
+// since Tallis is worn on Shabbos — the label differs but the zman is real.
 package attacher
 
 import (

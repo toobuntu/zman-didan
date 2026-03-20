@@ -135,14 +135,14 @@ type apiLocation struct {
 }
 
 type apiItem struct {
-	Title    string                     `json:"title"`
-	Date     string                     `json:"date"`
-	Category string                     `json:"category"`
-	Subcat   string                     `json:"subcat,omitempty"`
-	Hebrew   string                     `json:"hebrew,omitempty"`
-	Memo     string                     `json:"memo,omitempty"`
-	Link     string                     `json:"link,omitempty"`
-	HDate    string                     `json:"hdate,omitempty"`
+	Title    string `json:"title"`
+	Date     string `json:"date"`
+	Category string `json:"category"`
+	Subcat   string `json:"subcat,omitempty"`
+	Hebrew   string `json:"hebrew,omitempty"`
+	Memo     string `json:"memo,omitempty"`
+	Link     string `json:"link,omitempty"`
+	HDate    string `json:"hdate,omitempty"`
 	// Leyning mixes string aliyah keys with non-string values; decoded raw.
 	Leyning map[string]json.RawMessage `json:"leyning,omitempty"`
 }

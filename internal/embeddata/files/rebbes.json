@@ -1,0 +1,106 @@
+[
+  {
+    "honorific": "the Alter Rebbe",
+    "verbose_names": ["R. Schneur Zalman of Liadi"],
+    "birth_year": 5505,
+    "birth_date_hebrew": "18 Elul 5505",
+    "birth_date_gregorian": "1745-09-04",
+    "death_year": 5572,
+    "death_date_hebrew": "24 Tevet 5572",
+    "death_date_gregorian": "1812-12-27"
+  },
+  {
+    "honorific": "the Mitteler Rebbe",
+    "verbose_names": ["R. DovBer Schneuri", "R. Dovber Schneuri"],
+    "birth_year": 5534,
+    "birth_date_hebrew": "9 Kislev 5534",
+    "birth_date_gregorian": "1773-11-09",
+    "death_year": 5588,
+    "death_date_hebrew": "9 Kislev 5588",
+    "death_date_gregorian": "1827-11-16"
+  },
+  {
+    "honorific": "the Tzemach Tzedek",
+    "verbose_names": ["R. Menachem Mendel Schneersohn"],
+    "birth_year": 5549,
+    "birth_date_hebrew": "29 Elul 5549",
+    "birth_date_gregorian": "1789-09-09",
+    "death_year": 5626,
+    "death_date_hebrew": "13 Nisan 5626",
+    "death_date_gregorian": "1866-04-01"
+  },
+  {
+    "honorific": "the Rebbe Maharash",
+    "verbose_names": ["R. Shmuel Schneersohn"],
+    "birth_year": 5594,
+    "birth_date_hebrew": "2 Iyar 5594",
+    "birth_date_gregorian": "1834-05-02",
+    "death_year": 5643,
+    "death_date_hebrew": "13 Tishrei 5643",
+    "death_date_gregorian": "1882-10-04"
+  },
+  {
+    "honorific": "the Rebbe Rashab",
+    "verbose_names": [
+      "R. Shalom DovBer Schneersohn",
+      "R. Sholom Dovber Schneersohn",
+      "R. Sholom DovBer of Lubavitch"
+    ],
+    "birth_year": 5621,
+    "birth_date_hebrew": "20 Cheshvan 5621",
+    "birth_date_gregorian": "1860-11-04",
+    "death_year": 5680,
+    "death_date_hebrew": "2 Nisan 5680",
+    "death_date_gregorian": "1920-03-21"
+  },
+  {
+    "honorific": "the Frierdiker Rebbe",
+    "verbose_names": ["R. Yosef Yitzchak Schneersohn"],
+    "birth_year": 5640,
+    "birth_date_hebrew": "12 Tammuz 5640",
+    "birth_date_gregorian": "1880-06-21",
+    "death_year": 5710,
+    "death_date_hebrew": "10 Shevat 5710",
+    "death_date_gregorian": "1950-01-28"
+  },
+  {
+    "honorific": "the Rebbe",
+    "verbose_names": ["R. Menachem Mendel Schneerson"],
+    "birth_year": 5662,
+    "birth_date_hebrew": "11 Nisan 5662",
+    "birth_date_gregorian": "1902-04-18",
+    "death_year": 5754,
+    "death_date_hebrew": "3 Tammuz 5754",
+    "death_date_gregorian": "1994-06-12"
+  },
+  {
+    "honorific": "R. Levi Yitzchak Schneerson",
+    "verbose_names": ["R. Levi Yitzchak Schneerson"],
+    "birth_year": 5638,
+    "birth_date_hebrew": "17 Nisan 5638",
+    "birth_date_gregorian": "1878-04-20",
+    "death_year": 5704,
+    "death_date_hebrew": "20 Av 5704",
+    "death_date_gregorian": "1944-08-09"
+  },
+  {
+    "honorific": "Rebbetzin Chana",
+    "verbose_names": ["Rebbetzin Chana Schneerson"],
+    "birth_year": 5640,
+    "birth_date_hebrew": "28 Nissan 5640",
+    "birth_date_gregorian": "1880-04-28",
+    "death_year": 5725,
+    "death_date_hebrew": "6 Tishrei 5725",
+    "death_date_gregorian": "1964-10-12"
+  },
+  {
+    "honorific": "the Baal Shem Tov",
+    "verbose_names": ["Baal Shem Tov"],
+    "birth_year": 5458,
+    "birth_date_hebrew": "18 Elul 5458",
+    "birth_date_gregorian": "1698-08-27",
+    "death_year": 5520,
+    "death_date_hebrew": "6 Sivan 5520",
+    "death_date_gregorian": "1760-05-23"
+  }
+]
