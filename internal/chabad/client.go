@@ -161,9 +161,13 @@ func splitLabel(s string) []string {
 }
 
 // CandleDay holds the candle lighting and havdalah times for one calendar date.
+// The map key is "YYYY-MM-DD" in the location's local timezone.
+// AfterHavdala is true when chabad.org labels the entry "Light Holiday Candles
+// after", indicating second-day Yom Tov candles lit after Havdalah.
 type CandleDay struct {
-	Candles  time.Time
-	Havdalah time.Time
+	Candles      time.Time
+	Havdalah     time.Time
+	AfterHavdala bool // second-night YT: candles lit after Havdalah
 }
 
 // Client fetches from chabad.org.
@@ -201,7 +205,8 @@ func (c *Client) FetchZmanimInZone(date time.Time, loc types.Location, cfg types
 
 // FetchCandlesYear fetches a full year of candle lighting and havdalah times.
 // tdate is the start date in "M/D/YYYY" format. The candle ICS is not cached.
-func (c *Client) FetchCandlesYear(tdate string, loc types.Location, cfg types.Config) (map[time.Time]CandleDay, error) {
+// The returned map is keyed by "YYYY-MM-DD" in the location's local timezone.
+func (c *Client) FetchCandlesYear(tdate string, loc types.Location, cfg types.Config) (map[string]CandleDay, error) {
 	rawURL := buildCandleURL(tdate, loc, cfg)
 	body, err := c.httpGet(rawURL)
 	if err != nil {
@@ -407,7 +412,13 @@ func setField(z *types.ZmanimDay, field string, t time.Time) {
 
 // ---- ICS candle parsing ----
 
-func parseCandleICS(body []byte, tzid string) (map[time.Time]CandleDay, error) {
+// parseCandleICS parses the chabad.org candle lighting ICS and returns a map
+// keyed by "YYYY-MM-DD" in the location's local timezone.
+//
+// Using a string key (not time.Time) avoids Go's time.Time equality semantics,
+// which include the *Location pointer. Multiple time.LoadLocation calls for the
+// same TZID may return different pointers, causing map lookups to fail silently.
+func parseCandleICS(body []byte, tzid string) (map[string]CandleDay, error) {
 	tz, err := time.LoadLocation(tzid)
 	if err != nil {
 		return nil, fmt.Errorf("loading timezone %q: %w", tzid, err)
@@ -416,7 +427,7 @@ func parseCandleICS(body []byte, tzid string) (map[time.Time]CandleDay, error) {
 	if err != nil {
 		return nil, fmt.Errorf("parsing candle ICS: %w", err)
 	}
-	result := make(map[time.Time]CandleDay)
+	result := make(map[string]CandleDay)
 	for _, ev := range cal.Events() {
 		dtstart := ev.GetProperty(ical.ComponentPropertyDtStart)
 		if dtstart == nil {
@@ -427,7 +438,7 @@ func parseCandleICS(body []byte, tzid string) (map[time.Time]CandleDay, error) {
 			continue
 		}
 		localTime := utcTime.In(tz)
-		dateKey := time.Date(localTime.Year(), localTime.Month(), localTime.Day(), 0, 0, 0, 0, tz)
+		dateKey := localTime.Format("2006-01-02")
 
 		summary := ev.GetProperty(ical.ComponentPropertySummary)
 		if summary == nil {
@@ -436,10 +447,13 @@ func parseCandleICS(body []byte, tzid string) (map[time.Time]CandleDay, error) {
 		text := summary.Value
 		day := result[dateKey]
 		switch {
-		case strings.Contains(text, "Light Candles"),
+		case strings.Contains(text, "Light Shabbat Candles"),
 			strings.Contains(text, "Light Holiday Candles"),
-			strings.Contains(text, "Light Shabbat Candles"):
+			strings.Contains(text, "Light Candles"):
 			day.Candles = localTime
+			// "Light Holiday Candles after" means second-night YT candles are
+			// lit after Havdalah from the first night.
+			day.AfterHavdala = strings.Contains(text, " after")
 		case strings.Contains(text, "Shabbat Ends"),
 			strings.Contains(text, "Holiday Ends"),
 			strings.Contains(text, "Yom Tov Ends"):

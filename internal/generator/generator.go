@@ -61,6 +61,13 @@ func Run(cfg types.Config) error {
 		}
 	}
 
+	// Drop timed fast-begin/end events that Hebcal returns via c=on. We
+	// synthesise our own timed events in fastday.Build using Chabad-
+	// authoritative times from chabad.org. Keeping both would produce
+	// duplicate events with slightly different times and no alarms on the
+	// Hebcal version. The all-day fast event is kept; it drives fastday.Build.
+	events = dropTimedHebcalFastEvents(events)
+
 	// 2. Chabad candle lighting + havdalah.
 	// The candle ICS is always fetched from chabad.org; it is not cached.
 	fmt.Println("Fetching candle lighting from chabad.org...")
@@ -148,6 +155,22 @@ func Run(cfg types.Config) error {
 	}
 	fmt.Printf("Written: %s\n", outPath)
 	return nil
+}
+
+// dropTimedHebcalFastEvents removes timed fast-begin and fast-end events that
+// Hebcal returns via c=on alongside the all-day fast event. These are identified
+// by being timed (AllDay=false) with Subcat=="fast" — the same combination that
+// fastday.Build uses to synthesise its own versions with Chabad-authoritative
+// times and configured alarms.
+func dropTimedHebcalFastEvents(events []types.HebcalEvent) []types.HebcalEvent {
+	out := make([]types.HebcalEvent, 0, len(events))
+	for _, ev := range events {
+		if !ev.AllDay && ev.Subcat == "fast" {
+			continue
+		}
+		out = append(out, ev)
+	}
+	return out
 }
 
 func collectZmanimDates(events []types.HebcalEvent, tzid string) []time.Time {

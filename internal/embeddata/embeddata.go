@@ -9,10 +9,10 @@
 //     against https://www.chabad.org/library/article_cdo/aid/4158333)
 //   - yomei_dpagra.json      Chabad special dates with Chitas summaries
 //   - transliterations.json  Sephardic/modern → Ashkenazi substitution table
-//   - rebbes.json            Unified rebbe biographical data: honorific, verbose
-//     name variants, and Hebrew birth/death years. Source of truth for name
-//     normalization, birthday "(N years ago)" annotation, and yahrzeit
-//     death-year disambiguation.
+//   - rebbes.json            Unified rebbe biographical data. Fields used at
+//     runtime: honorific, verbose_names, huledes_year, dob_gregorian,
+//     histalkus_year, histalkus_gregorian. The Hebrew date strings
+//     (dob_hebrew, histalkus_hebrew) are preserved for reference only.
 package embeddata
 
 import _ "embed"
@@ -31,16 +31,8 @@ var YomeiDpagraJSON []byte
 var TransliterationsJSON []byte
 
 // RebbesJSON is the unified rebbe biographical data table.
-// Format: JSON array of objects with fields:
-//
-//	honorific     string   standard Chabad name, unique across all entries
-//	verbose_names []string all name forms observed in Hebcal feed data
-//	birth_year    int      Hebrew calendar year of birth
-//	death_year    int      Hebrew calendar year of death
-//
-// death_year enables disambiguation when two figures share a verbose name:
-// the year computed from a Hebcal yahrzeit description (observance_year − N)
-// must match death_year.
+// Format: JSON array of objects. See docs/rebbes_schema.md for the full
+// schema and a human-readable reference table with both calendar systems.
 //
 //go:embed files/rebbes.json
 var RebbesJSON []byte

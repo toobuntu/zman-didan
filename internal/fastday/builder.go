@@ -2,9 +2,9 @@
 // fast days. The existing all-day holiday event is left in place.
 //
 // Only all-day Hebcal holiday events with Subcat "fast" are processed.
-// Hebcal also returns timed fast-begin and fast-end events (when c=on)
-// with the same Subcat; filtering to AllDay avoids synthesising duplicate
-// events from those timed entries.
+// Hebcal also returns timed fast-begin and fast-end events from c=on;
+// those are dropped by generator.dropTimedHebcalFastEvents before this
+// package runs, so no deduplication is needed here.
 package fastday
 
 import (
@@ -16,8 +16,10 @@ import (
 )
 
 // Build returns new events for each fast day:
-//   - "[Fast Name] Begins" at alos (or prev-day shkiah for Tisha B'Av / Yom Kippur)
-//   - "[Fast Name] Ends"   at tzeis
+//   - "Fast begins" at alos (or prev-day shkia for Tisha B'Av / Yom Kippur)
+//   - "Fast ends"   at tzeis
+//
+// The fast name is placed in Description for context; SUMMARY stays short.
 func Build(events []types.HebcalEvent, zmanimMap map[string]types.ZmanimDay, locationID, tzid string) []types.HebcalEvent {
 	tz, _ := time.LoadLocation(tzid)
 	var synthesised []types.HebcalEvent
@@ -38,8 +40,8 @@ func Build(events []types.HebcalEvent, zmanimMap map[string]types.ZmanimDay, loc
 		begin, end := fastTimes(ev, z, prevZ, hasPrev)
 		name := fastBaseName(ev.Title)
 		synthesised = append(synthesised,
-			beginEvent(ev, name, begin, locationID),
-			endEvent(ev, name, end, locationID),
+			beginEvent(name, begin, locationID),
+			endEvent(name, end, locationID),
 		)
 	}
 	return synthesised
@@ -75,8 +77,7 @@ func fastBaseName(title string) string {
 	return strings.TrimSpace(strings.Join(out, " "))
 }
 
-// isEmoji reports whether s consists entirely of non-ASCII Unicode characters
-// above U+2000 (the start of general punctuation / symbol blocks).
+// isEmoji reports whether s consists entirely of non-ASCII Unicode above U+2000.
 func isEmoji(s string) bool {
 	if s == "" {
 		return false
@@ -89,11 +90,17 @@ func isEmoji(s string) bool {
 	return true
 }
 
-func beginEvent(src types.HebcalEvent, name string, t time.Time, locationID string) types.HebcalEvent {
+func beginEvent(name string, t time.Time, locationID string) types.HebcalEvent {
 	return types.HebcalEvent{
-		Date: t, AllDay: false, Category: "fast-begin",
-		Title: name + " Begins", Hebrew: src.Hebrew,
-		UID: fmt.Sprintf("didan-%s-fast-begin-%s", t.Format("2006-01-02"), locationID),
+		Date:  t,
+		AllDay: false,
+		Category: "fast-begin",
+		// Generic SUMMARY; fast name in Description provides context without
+		// cluttering the calendar title.
+		Title:       "Fast begins",
+		Hebrew:      "תחילת הצום",
+		Description: name,
+		UID:         fmt.Sprintf("didan-%s-fast-begin-%s", t.Format("2006-01-02"), locationID),
 		Alarms: []types.Alarm{
 			{TriggerMinutes: -120, Description: "Event reminder"},
 			{TriggerMinutes: -30, Description: "Event reminder"},
@@ -101,11 +108,15 @@ func beginEvent(src types.HebcalEvent, name string, t time.Time, locationID stri
 	}
 }
 
-func endEvent(src types.HebcalEvent, name string, t time.Time, locationID string) types.HebcalEvent {
+func endEvent(name string, t time.Time, locationID string) types.HebcalEvent {
 	return types.HebcalEvent{
-		Date: t, AllDay: false, Category: "fast-end",
-		Title: name + " Ends", Hebrew: src.Hebrew,
-		UID: fmt.Sprintf("didan-%s-fast-end-%s", t.Format("2006-01-02"), locationID),
+		Date:     t,
+		AllDay:   false,
+		Category: "fast-end",
+		Title:    "Fast ends",
+		Hebrew:   "סיום הצום",
+		Description: name,
+		UID:      fmt.Sprintf("didan-%s-fast-end-%s", t.Format("2006-01-02"), locationID),
 		Alarms: []types.Alarm{
 			{TriggerMinutes: -15, Description: "Event reminder"},
 			{TriggerMinutes: 0, Description: "Event reminder"},

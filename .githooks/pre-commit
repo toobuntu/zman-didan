@@ -15,25 +15,26 @@ if [ -n "$go_files" ]; then
     done
 fi
 
-# Vet all packages (not just staged — a staged file may affect other packages).
+# Vet all packages — a staged change may affect non-staged packages.
 go vet ./...
 
-# staticcheck if available.
+# staticcheck if available (install: go install honnef.co/go/tools/cmd/staticcheck@latest).
 if command -v staticcheck >/dev/null 2>&1; then
     staticcheck ./...
 fi
 
-# Lint staged workflow files with actionlint if available.
+# Lint staged workflow files with actionlint if available
+# (install: go install github.com/rhysd/actionlint/cmd/actionlint@latest).
 workflow_files=$(staged '\.github/workflows/.*\.yml$')
 if [ -n "$workflow_files" ]; then
     if command -v actionlint >/dev/null 2>&1; then
         printf '%s\n' "$workflow_files" | xargs actionlint
     else
-        echo "warning: actionlint not found — skipping workflow lint (brew install actionlint)"
+        echo "warning: actionlint not found — skipping workflow lint"
     fi
 fi
 
-# REUSE compliance check.
+# REUSE compliance (install: pipx install reuse).
 if command -v reuse >/dev/null 2>&1; then
     if ! reuse lint --quiet; then
         reuse lint
@@ -56,12 +57,12 @@ To annotate unannotated files, run:
             "$@"
     }
 
-    printf '%s\n' "$files" | grep -E '\.go$'   | annotate --style=go
-    printf '%s\n' "$files" | grep -vE '\.go$'  | annotate --fallback-dot-license
+    printf '%s\n' "$files" | grep -E '\.go$'  | annotate --style=go
+    printf '%s\n' "$files" | grep -vE '\.go$' | annotate --fallback-dot-license
   fi
 HINT
         exit 1
     fi
 else
-    echo "warning: reuse not found — skipping REUSE compliance check (pip install reuse)"
+    echo "warning: reuse not found — skipping REUSE compliance check"
 fi

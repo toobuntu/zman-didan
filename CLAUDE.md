@@ -38,15 +38,15 @@ didan/
 │           ├── yomei_dpagra.json        # Chabad special dates + Chitas summaries
 │           ├── transliterations.json    # [[source, target], …] substitution pairs
 │           └── rebbes.json              # unified rebbe data: names, honorifics, dates
-├── .github/workflows/ci.yml      # GitHub Actions: vet, build, staticcheck, govulncheck,
-│                                  #   actionlint, REUSE
+├── .github/workflows/ci.yml      # GitHub Actions: fmt, vet, build, staticcheck,
+│                                  #   govulncheck, actionlint, REUSE
 ├── .githooks/pre-commit           # fmt+restage, vet, staticcheck, actionlint, REUSE
 ├── docs/
 │   ├── rebbes_schema.md           # rebbes.json schema + full DOB/DOD reference tables
 │   ├── zmanim_parser_design.md
 │   └── zmanim_parser_data-driven_classifier.md
-├── Makefile                       # build, fmt, vet, lint, vuln, actionlint, reuse,
-│                                  #   check, tidy, hooks, clean
+├── Makefile                       # build, fmt, style, scan, check, actionlint,
+│                                  #   reuse, tidy, hooks, clean
 ├── go.mod                         # module github.com/toobuntu/zman-didan
 ├── go.sum                         # dependency lock file — commit this
 ├── ARCHITECTURE.md
@@ -62,8 +62,39 @@ make build          # go build -o bin/didan ./cmd/didan
 ./bin/didan generate --year 5786 --zip 17601 --lang ah
 ./bin/didan generate --start 2026-03-16 --end 2026-04-19 --zip 17601 --lang ah
 go test ./...       # no tests yet
-make check          # fmt + vet + lint + vuln (mirrors CI locally)
+make check          # style + scan (mirrors CI)
 ```
+
+## Tool installation
+
+All static analysis tools can be installed via Homebrew (which tracks current
+releases) or via `go install` (pins to a specific version, matches CI exactly):
+
+```sh
+# Homebrew (simpler for local dev)
+brew install staticcheck govulncheck actionlint reuse
+
+# go install (matches CI; recommended if you want version parity)
+go install honnef.co/go/tools/cmd/staticcheck@latest
+go install golang.org/x/vuln/cmd/govulncheck@latest
+go install github.com/rhysd/actionlint/cmd/actionlint@latest
+pipx install reuse  # or: brew install reuse
+```
+
+## Make targets
+
+| Target | What it does |
+|--------|-------------|
+| `make build` | Compile `bin/didan` |
+| `make fmt` | `gofmt -w` all Go files |
+| `make style` | Format check + `go vet` + `staticcheck` |
+| `make scan` | `govulncheck` |
+| `make check` | `style` + `scan` (full local suite) |
+| `make actionlint` | Lint `.github/workflows/ci.yml` |
+| `make reuse` | REUSE licence compliance check |
+| `make hooks` | Register `.githooks/pre-commit` |
+| `make tidy` | `go mod tidy` |
+| `make clean` | Remove `bin/didan` |
 
 ## CLI flags (current)
 
@@ -87,7 +118,7 @@ make check          # fmt + vet + lint + vuln (mirrors CI locally)
 | Mapping | Location |
 |---------|----------|
 | Transliteration (Sephardic/modern → Ashkenazi) | `internal/embeddata/files/transliterations.json` |
-| Rebbe name normalization + birth/death dates | `internal/embeddata/files/rebbes.json` |
+| Rebbe name normalization + birth/histalkus dates | `internal/embeddata/files/rebbes.json` |
 | Haftorah assignments | `internal/embeddata/files/haftorah_chabad.json` |
 | Yomei d'Pagra summaries | `internal/embeddata/files/yomei_dpagra.json` |
 | RSS title → ZmanimDay field | `internal/chabad/client.go` — `classifierRules` slice |
@@ -114,23 +145,27 @@ fetch + filter + merge Yomei d'Pagra → sort → write iCal
 ### rebbes.json
 
 Single source of truth for rebbe data. See `docs/rebbes_schema.md` for the full
-schema and DOB/DOD reference tables (Hebrew and Gregorian). Fields used at runtime:
+schema and reference tables. Fields used at runtime:
 
-- `verbose_names` — matched against raw Hebcal feed strings for name normalization
-- `honorific` — replacement name written to calendar output
-- `birth_year` — Hebrew year integer; used for "(N years ago)" in birthday descriptions
-- `death_year` — Hebrew year integer; used to disambiguate when two figures share a
-  verbose name (cross-checked against observance_year − N from Hebcal yahrzeit text)
+| Field | Used for |
+|-------|---------|
+| `verbose_names` | String replacement in `normalizeNames`; lookup key in `findByVerboseName` |
+| `honorific` | Output name in calendar events |
+| `huledes_year` | "(N years ago)" in birthday descriptions |
+| `dob_gregorian` | Gregorian date shown in birthday descriptions |
+| `histalkus_year` | Disambiguates shared verbose names; "(N years ago)" in histalkus descriptions |
+| `histalkus_gregorian` | Gregorian date shown in histalkus descriptions |
 
-Fields preserved for reference but not read at runtime:
-`birth_date_hebrew`, `birth_date_gregorian`, `death_date_hebrew`, `death_date_gregorian`
+Fields `dob_hebrew` and `histalkus_hebrew` are preserved for reference only.
 
 ### Operation order in specialdates
 
-`reformatDescription` runs inside `convertEvent` — before `normalizeNames`. This
-means `rebbes.json` `verbose_names` must match the raw Hebcal feed strings, not the
-honorific forms. After reformatting, `normalizeNames` replaces verbose names with
-honorifics in both Title and Description.
+`reformatDescription` runs before `normalizeNames`, so `verbose_names` must match
+raw Hebcal feed strings exactly. After reformatting, `normalizeNames` replaces
+verbose names with honorifics. `shortenTitles` then rewrites e.g.
+"Birthday of the Rebbe" → "Rebbe's Birthday".
+
+`strings.CutPrefix` (Go ≥ 1.20) is used in `shortenTitle`.
 
 ### RSS parser
 
@@ -199,3 +234,4 @@ non-Eastern locations.
 - [ ] Parsha summaries in descriptions
 - [ ] SwiftUI GUI wrapper
 - [ ] Contact chabad.org about RSS feed usage terms
+- [ ] Test suite (start with `reformatDescription`, `zmanimRange`, RSS classifier)

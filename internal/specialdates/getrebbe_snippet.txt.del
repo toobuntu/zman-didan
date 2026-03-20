@@ -1,8 +1,0 @@
-func getRebbe() []rebbeEntry {
-	rebbeOnce.Do(func() {
-		if err := json.Unmarshal(embeddata.RebbesJSON, &rebbeData); err != nil {
-			fmt.Printf("Warning: parsing rebbes.json: %v\n", err)
-		}
-	})
-	return rebbeData
-}
