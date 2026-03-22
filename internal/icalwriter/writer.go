@@ -27,7 +27,7 @@ func Write(w io.Writer, events []types.HebcalEvent, loc types.Location, year int
 	ww.line(fmt.Sprintf("X-WR-TIMEZONE:%s", loc.TZID))
 	writeVTimezone(ww, loc.TZID)
 	for _, ev := range events {
-		if err := writeEvent(ww, ev, loc.TZID, lang, emojis); err != nil {
+		if err := writeEvent(ww, ev, loc, lang, emojis); err != nil {
 			fmt.Printf("Warning: skipping event %q: %v\n", ev.Title, err)
 		}
 	}
@@ -58,8 +58,8 @@ func writeVTimezone(ww *writer, tzid string) {
 	ww.line("END:VTIMEZONE")
 }
 
-func writeEvent(ww *writer, ev types.HebcalEvent, tzid, lang string, emojis bool) error {
-	tz, err := time.LoadLocation(tzid)
+func writeEvent(ww *writer, ev types.HebcalEvent, loc types.Location, lang string, emojis bool) error {
+	tz, err := time.LoadLocation(loc.TZID)
 	if err != nil {
 		return err
 	}
@@ -81,17 +81,20 @@ func writeEvent(ww *writer, ev types.HebcalEvent, tzid, lang string, emojis bool
 		ww.line("X-MICROSOFT-CDO-BUSYSTATUS:FREE")
 	} else {
 		t := ev.Date.In(tz).Format("20060102T150405")
-		ww.fold(fmt.Sprintf("DTSTART;TZID=%s:%s", tzid, t))
-		ww.fold(fmt.Sprintf("DTEND;TZID=%s:%s", tzid, t))
+		ww.fold(fmt.Sprintf("DTSTART;TZID=%s:%s", loc.TZID, t))
+		ww.fold(fmt.Sprintf("DTEND;TZID=%s:%s", loc.TZID, t))
 		ww.line("TRANSP:TRANSPARENT")
 		ww.line("X-MICROSOFT-CDO-BUSYSTATUS:FREE")
 	}
 	ww.line("CLASS:PUBLIC")
 
+	if loc.City != "" {
+		ww.fold("LOCATION:" + escapeText(loc.City))
+	}
+
 	// Use Description if populated, else Memo. ev.Link is NOT included —
 	// hebcal.com links are not required by Hebcal's terms for iCal output,
-	// and they add noise. chabad.org links added by haftorah.Patch are kept
-	// as they are in ev.Description already.
+	// and they add noise.
 	desc := ev.Description
 	if desc == "" {
 		desc = ev.Memo
@@ -113,18 +116,31 @@ func writeEvent(ww *writer, ev types.HebcalEvent, tzid, lang string, emojis bool
 
 // buildSummary constructs the SUMMARY value.
 //
-// For Ashkenazi+Hebrew modes (ah, ah-x-NoNikud) and transliteration-only
-// modes (a, s, sh), we append " / Hebrew" when the Hebrew field is distinct.
-// For Hebrew-only modes (he, he-x-NoNikud), Title already contains Hebrew.
-// Emojis are prepended when cfg.Emojis is true, using a category lookup.
+// Candle lighting and havdala events always render in bilingual form
+// ("Title / Hebrew") when a Hebrew field is available, regardless of lang
+// mode. The LTR time component must be readable; starting the SUMMARY with
+// Hebrew text causes calendar apps to render the whole string right-to-left,
+// making the time unreadable (e.g. "PM 8:03 :(4+) הַבְדָּלָה").
+//
+// For other events:
+//   - ah / ah-x-NoNikud / a / s / sh: "English / Hebrew"
+//   - he / he-x-NoNikud: Hebrew only (Title already contains Hebrew from API)
 func buildSummary(ev types.HebcalEvent, lang string, emojis bool) string {
 	title := ev.Title
+
+	isTimedEvent := ev.Category == "candles" || ev.Category == "havdalah" ||
+		ev.Category == "fast-begin" || ev.Category == "fast-end"
+
 	if ev.Hebrew != "" && ev.Hebrew != title {
-		switch lang {
-		case "ah", "ah-x-NoNikud", "a", "s", "sh":
+		switch {
+		case isTimedEvent:
+			// Always bilingual for timed events: time is LTR and must be readable.
+			title = title + " / " + ev.Hebrew
+		case lang == "ah", lang == "ah-x-NoNikud", lang == "a", lang == "s", lang == "sh":
 			title = title + " / " + ev.Hebrew
 		}
 	}
+
 	if emojis {
 		if e := eventEmoji(ev); e != "" {
 			title = e + " " + title
@@ -133,7 +149,7 @@ func buildSummary(ev types.HebcalEvent, lang string, emojis bool) string {
 	return title
 }
 
-// eventEmoji returns the emoji prefix for an event, following Hebcal conventions.
+// eventEmoji returns the emoji prefix for an event.
 // Returns "" for events with no standard emoji.
 func eventEmoji(ev types.HebcalEvent) string {
 	switch ev.Category {

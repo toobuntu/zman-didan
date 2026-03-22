@@ -43,7 +43,7 @@ func PatchCandles(events []types.HebcalEvent, candleTimes map[string]chabad.Cand
 				t := day.Havdalah.Add(time.Duration(tosfos) * time.Minute)
 				ev.Date = t
 				ev.AllDay = false
-				ev.Title = rebuildHavdalaTitle(ev.Title, t.In(tz), tosfos)
+				ev.Title = rebuildHavdalaTitle(t.In(tz), tosfos)
 			}
 		}
 	}
@@ -51,20 +51,13 @@ func PatchCandles(events []types.HebcalEvent, candleTimes map[string]chabad.Cand
 
 // rebuildCandle returns the new Title and Hebrew for a candle lighting event.
 //
-// Title forms by case:
+//	Regular Shabbos:   "Candle lighting: 6:52 PM"   /  "הדלקת נרות"
+//	Yom Tov:           "YT candles: 7:05 PM"         /  "הדלקת נרות"
+//	YT after Havdala:  "YT candles after: 8:12 PM"   /  "הדלקת נרות אחר"
 //
-//	Regular Shabbos:      "Candle lighting: 6:52 PM"    (familiar term, no prefix)
-//	Yom Tov:              "YT candles: 7:05 PM"
-//	YT after Havdala:     "YT candles after: 8:12 PM"
-//
-// The "after" case ("Light Holiday Candles after" from chabad.org) indicates
-// second-night Yom Tov candles lit after Havdalah. The Hebrew suffix "אחר"
-// (after) conveys the same distinction in the bilingual SUMMARY.
-//
-// "Sh candles" is not used for regular Shabbos — "Candle lighting" is the
-// universally understood term and avoids abbreviation where none is needed.
-// The "YT" prefix is reserved for Yom Tov cases where the distinction from
-// Shabbos candles is actually informative.
+// "YT" prefix is used only when the distinction from Shabbos candles is
+// informative. "Candle lighting" is used for regular Shabbos — it is the
+// universally familiar term and avoids unnecessary abbreviation.
 func rebuildCandle(hebrew string, t time.Time, isYomTov, afterHavdala bool) (title, newHebrew string) {
 	timeStr := t.Format("3:04 PM")
 	switch {
@@ -81,23 +74,20 @@ func rebuildCandle(hebrew string, t time.Time, isYomTov, afterHavdala bool) (tit
 	return title, newHebrew
 }
 
-// rebuildHavdalaTitle reconstructs the havdalah SUMMARY.
-// "Havdalah: 8:03pm", tosfos=4 → "Havdalah (+4): 8:07 PM"
-// "Havdalah: 8:03pm", tosfos=0 → "Havdalah: 8:03 PM"
-func rebuildHavdalaTitle(original string, t time.Time, tosfos int) string {
-	base := titleBase(original)
+// rebuildHavdalaTitle constructs the havdalah SUMMARY with the patched time
+// and tosfos offset. Always uses the English base "Havdalah" regardless of
+// the original title language — the time component is inherently LTR, and
+// deriving the base from a Hebrew original title causes RTL display problems
+// in calendar apps (the whole string reads reversed).
+//
+//	tosfos=4 → "Havdalah (+4): 8:07 PM"
+//	tosfos=0 → "Havdalah: 8:03 PM"
+//
+// The transliterator converts "Havdalah" → "Havdala" downstream for
+// Ashkenazi modes.
+func rebuildHavdalaTitle(t time.Time, tosfos int) string {
 	if tosfos > 0 {
-		return fmt.Sprintf("%s (+%d): %s", base, tosfos, t.Format("3:04 PM"))
+		return fmt.Sprintf("Havdalah (+%d): %s", tosfos, t.Format("3:04 PM"))
 	}
-	return fmt.Sprintf("%s: %s", base, t.Format("3:04 PM"))
-}
-
-// titleBase strips the time suffix from a Hebcal event title.
-// "Candle lighting: 6:36pm" → "Candle lighting"
-// "Havdalah: 8:03pm"       → "Havdalah"
-func titleBase(s string) string {
-	if idx := strings.Index(s, ": "); idx >= 0 {
-		return s[:idx]
-	}
-	return s
+	return fmt.Sprintf("Havdalah: %s", t.Format("3:04 PM"))
 }
