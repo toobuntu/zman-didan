@@ -30,3 +30,6 @@ make check          # style + scan + test (mirrors CI)
 - Lang flags: `h|hn|a|ah|ahn|s|sh|shn` (mapped in `internal/hebcal/client.go`)
 - Tests: `go test -count=1 ./...`; integration: `make integration`
 - Style: `gofmt` + `go vet` + `staticcheck` (`make check`)
+- macOS-compatible shell: avoid GNU extensions; `xargs -r` is safe on macOS
+- REUSE: Go files use `// SPDX-…` headers; non-Go files use `.license` sidecars
+- Always explain linter disables with a preceding comment

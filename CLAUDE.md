@@ -299,3 +299,26 @@ Static block for `America/New_York` only. Phase 2: generate from tzdata.
 - [ ] SwiftUI GUI wrapper
 - [ ] Contact chabad.org about RSS feed usage terms
 - [ ] Add `make test` to pre-commit hook and CI
+
+## Conventions
+
+### macOS compatibility
+
+All shell scripts and implementations must be macOS-compatible. Avoid GNU CLI
+extensions (`sed -E` ranges, `date -d`, `find -printf`). Use POSIX/BSD syntax.
+`xargs -r` is safe on macOS (since macOS 26.3.1 FreeBSD xargs, `-r` /
+`--no-run-if-empty` is a documented no-op for GNU compat). Do not hand-write
+REUSE headers — run `scripts/annotate.sh` instead.
+
+### Code style
+
+Always include a comment line before a shellcheck/linter disable explaining the
+reason, unless the disable is inline on a top-level line. `gofmt` is the
+authoritative Go formatter; `shfmt` is the authoritative bash formatter.
+
+### REUSE compliance
+
+All Go files use `// SPDX-…` comment-style headers. Non-Go files (JSON,
+markdown, PDF, config) use `.license` sidecar files so that upstream tools
+(e.g., `reuse annotate --fallback-dot-license`) can freely overwrite them
+without removing SPDX headers. The sidecar-only approach must be maintained.
