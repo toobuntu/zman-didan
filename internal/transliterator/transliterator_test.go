@@ -43,15 +43,16 @@ func TestApply_AllScope(t *testing.T) {
 		case "memo":
 			ev = types.HebcalEvent{Memo: tt.in}
 		}
-		Apply([]types.HebcalEvent{ev}, false)
+		events := []types.HebcalEvent{ev}
+		Apply(events, false)
 		var got string
 		switch tt.field {
 		case "title":
-			got = ev.Title
+			got = events[0].Title
 		case "desc":
-			got = ev.Description
+			got = events[0].Description
 		case "memo":
-			got = ev.Memo
+			got = events[0].Memo
 		}
 		if got != tt.want {
 			t.Errorf("Apply %s(%q) = %q, want %q", tt.field, tt.in, got, tt.want)

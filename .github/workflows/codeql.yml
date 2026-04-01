@@ -24,8 +24,7 @@ jobs:
     permissions:
       security-events: write
       packages: read
-      actions: none
-      contents: none
+      contents: read
     strategy:
       fail-fast: false
       matrix:

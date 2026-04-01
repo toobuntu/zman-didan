@@ -5,14 +5,24 @@
 # Annotate unannotated files with SPDX headers for REUSE compliance.
 # Usage: scripts/annotate.sh
 #
-# Requires: reuse (pip install reuse, or brew install reuse)
+# Requires: reuse (pip install reuse, or brew install reuse), jq
 
 set -e
+
+for tool in reuse jq; do
+    if ! command -v "$tool" >/dev/null 2>&1; then
+        echo "error: $tool is required but not found" >&2
+        exit 1
+    fi
+done
 
 files=$(reuse lint --json \
   | jq -r '.non_compliant
     | (.missing_copyright_info + .missing_licensing_info)
-    | unique[]' 2>/dev/null) || true
+    | unique[]') || {
+    echo "error: reuse lint or jq failed" >&2
+    exit 1
+}
 
 if [ -z "$files" ]; then
     echo "All files are REUSE compliant."

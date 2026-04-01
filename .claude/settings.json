@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "gofmt -w $(git diff --name-only --diff-filter=ACM -- '*.go' | head -20)"
+            "command": "git diff --name-only --diff-filter=ACM -- '*.go' | xargs -r gofmt -w"
           }
         ]
       }
