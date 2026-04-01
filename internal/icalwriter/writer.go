@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 toobuntu
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 // Package icalwriter serialises a slice of HebcalEvents to RFC 5545 iCalendar
 // format. Output uses CRLF line endings and folds lines exceeding 75 octets.
 // Timed events use TZID= parameters (not UTC) for consistency.

@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 toobuntu
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 // Package chabad fetches Chabad-authoritative zmanim and candle lighting times.
 //
 // # RSS parsing

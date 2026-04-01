@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 toobuntu
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 // Package cache implements persistent caches for didan's external data sources.
 //
 // ZmanimCache: file-backed JSON store for per-date zmanim, keyed "YYYY-MM-DD|locationID".

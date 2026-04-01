@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 toobuntu
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 // Package specialdates fetches, transforms, and merges Chabad Yomei d'Pagra
 // from the hebcal-hosted chabad-special-dates.ics feed.
 //

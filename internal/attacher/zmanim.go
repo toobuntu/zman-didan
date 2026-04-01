@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 toobuntu
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 // Package attacher appends zmanim lines to event descriptions for Shabbos,
 // Yom Tov, fast days, Pesach seder nights, Tisha B'Av, and Chanuka.
 //

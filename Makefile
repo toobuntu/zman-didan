@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 toobuntu
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 .PHONY: build fmt style scan check test integration clean tidy hooks actionlint reuse
 
 BINARY := bin/didan
