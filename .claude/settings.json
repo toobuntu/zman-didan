@@ -1,0 +1,26 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "gofmt -w $(git diff --name-only --diff-filter=ACM -- '*.go' | head -20)"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "make test",
+            "timeout": 120
+          }
+        ]
+      }
+    ]
+  }
+}
