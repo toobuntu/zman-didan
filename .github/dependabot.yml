@@ -19,8 +19,7 @@ updates:
       - dependency-type: all
 
   - package-ecosystem: github-actions
-    directories:
-      - "/"
+    directory: "/"
     schedule:
       interval: weekly
       day: friday

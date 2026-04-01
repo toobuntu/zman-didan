@@ -11,7 +11,7 @@ set -e
 
 files=$(reuse lint --json \
   | jq -r '.non_compliant
-    | add(.missing_copyright_info, .missing_licensing_info)
+    | (.missing_copyright_info + .missing_licensing_info)
     | unique[]' 2>/dev/null) || true
 
 if [ -z "$files" ]; then
@@ -29,6 +29,7 @@ annotate() {
 }
 
 printf '%s\n' "$files" | grep -E '\.go$'  | annotate --style=go          || true
+# reuse's --style=python uses '#' comment style, which is correct for shell scripts.
 printf '%s\n' "$files" | grep -E '\.sh$'  | annotate --style=python      || true
 printf '%s\n' "$files" | grep -vE '\.(go|sh)$' | annotate --fallback-dot-license || true
 
