@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 toobuntu
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 // Package types defines the shared data structures used throughout the
 // didan pipeline.
 package types

@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 toobuntu
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 // Package transliterator applies Ashkenazi substitutions to event fields,
 // and optionally strips Hebrew nikud.
 //

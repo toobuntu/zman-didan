@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 toobuntu
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 // Package hebcal fetches and normalises Hebrew calendar data from the
 // Hebcal JSON API.
 //

@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 toobuntu
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 //go:build integration
 
 // Package integration contains tests that make real network requests.

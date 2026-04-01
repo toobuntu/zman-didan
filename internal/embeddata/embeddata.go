@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 toobuntu
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 // Package embeddata exposes static JSON data files embedded at compile time.
 //
 // Files are embedded from the files/ subdirectory alongside this package.
