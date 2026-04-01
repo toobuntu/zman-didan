@@ -1,0 +1,36 @@
+// normalizeLeyning extracts string-valued fields from the raw leyning map.
+// Non-string values (triennial object, haftaraNumV integer) are silently skipped.
+//
+// haftarah_chabad is populated by Hebcal when the Chabad reading differs from
+// Ashkenazi standard (live on www.hebcal.com as of 2026-03-30, hebcal-rest-api
+// v6.4.1+). Non-null only when Chabad custom differs; null means Chabad follows
+// the standard haftarah already in the haftarah field.
+func normalizeLeyning(m map[string]json.RawMessage) *types.Leyning {
+	if len(m) == 0 {
+		return nil
+	}
+	aliyot := make(map[string]string)
+	l := &types.Leyning{Aliyot: aliyot}
+	for k, raw := range m {
+		if k == "triennial" {
+			continue
+		}
+		var s string
+		if err := json.Unmarshal(raw, &s); err != nil {
+			continue
+		}
+		switch k {
+		case "torah":
+			l.Torah = s
+		case "haftarah":
+			l.Haftarah = s
+		case "haftarah_chabad":
+			l.HaftarahChabad = s
+		case "maftir":
+			l.Maftir = s
+		default:
+			aliyot[k] = s
+		}
+	}
+	return l
+}

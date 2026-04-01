@@ -1,0 +1,66 @@
+// reformatDescription replaces Hebcal's verbose boilerplate with concise text.
+// Runs before normalizeNames, so verbose rebbe names are still present.
+//
+// Histalkus (yahrzeit):
+//
+//	→ "Histalkus of NAME at age AGE on DAY HMONTH YEAR (DOD_GREG) — N years ago"
+//
+// Birthday:
+//
+//	→ "Birthday of NAME on DAY HMONTH HULEDES_YEAR (DOB_GREG) — N years ago"
+//	→ "Birthday of NAME on DAY HMONTH OBSERVANCE_YEAR"  (year unknown)
+//
+// Other events (e.g. "Marriage of Rebbe and Rebbetzin", "Rosh Hashanah of
+// Chassidism") match the same boilerplate pattern as birthdays. They are
+// returned as "EVENT on DAY HMONTH YEAR" without a "Birthday of" prefix.
+func reformatDescription(s string) string {
+	if m := yahrzeitRe.FindStringSubmatch(s); m != nil {
+		name := strings.TrimSpace(m[1])
+		n, _ := strconv.Atoi(m[2])
+		dayNum, hmonth := m[3], m[4]
+		hyear, _ := strconv.Atoi(m[5])
+		histalkusYear := hyear - n
+
+		age, dodParens := "", ""
+		if e := findByVerboseName(name, histalkusYear); e != nil {
+			if e.HuledesYear > 0 {
+				age = fmt.Sprintf(" at age %d", histalkusYear-e.HuledesYear)
+			}
+			if e.HistalkusGregorian != "" {
+				dodParens = " (" + formatGregorian(e.HistalkusGregorian) + ")"
+			}
+		}
+		return fmt.Sprintf("Histalkus of %s%s on %s %s %d%s — %d years ago",
+			name, age, dayNum, hmonth, histalkusYear, dodParens, n)
+	}
+
+	if m := birthdayRe.FindStringSubmatch(s); m != nil {
+		event := strings.TrimSpace(m[1])
+		dayNum, hmonth := m[2], m[3]
+		hyear, _ := strconv.Atoi(m[4])
+
+		if strings.HasPrefix(event, "Birthday of ") {
+			verboseName := strings.TrimPrefix(event, "Birthday of ")
+			if e := findByVerboseName(verboseName, 0); e != nil && e.HuledesYear > 0 {
+				n := hyear - e.HuledesYear
+				dobParens := ""
+				if e.HuledesGregorian != "" {
+					dobParens = " (" + formatGregorian(e.HuledesGregorian) + ")"
+				}
+				return fmt.Sprintf("Birthday of %s on %s %s %d%s — %d years ago",
+					verboseName, dayNum, hmonth, e.HuledesYear, dobParens, n)
+			}
+			return fmt.Sprintf("Birthday of %s on %s %s %d", verboseName, dayNum, hmonth, hyear)
+		}
+
+		// Non-birthday event: return the event title with its Hebrew date.
+		return fmt.Sprintf("%s on %s %s %d", event, dayNum, hmonth, hyear)
+	}
+
+	// Unknown pattern: strip leading boilerplate only.
+	if idx := strings.Index(s, " begins at sundown on "); idx >= 0 {
+		s = strings.TrimSpace(s[:idx])
+	}
+	s = strings.TrimPrefix(s, "Hebcal joins you in remembering ")
+	return strings.TrimSpace(s)
+}

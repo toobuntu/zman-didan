@@ -1,0 +1,23 @@
+	if m := birthdayRe.FindStringSubmatch(s); m != nil {
+		event := strings.TrimSpace(m[1])
+		dayNum, hmonth := m[2], m[3]
+		hyear, _ := strconv.Atoi(m[4])
+
+		if strings.HasPrefix(event, "Birthday of ") {
+			verboseName := strings.TrimPrefix(event, "Birthday of ")
+			if e := findByVerboseName(verboseName, 0); e != nil && e.HuledesYear > 0 {
+				n := hyear - e.HuledesYear
+				dobParens := ""
+				if e.HuledesGregorian != "" {
+					dobParens = " (" + formatGregorian(e.HuledesGregorian) + ")"
+				}
+				return fmt.Sprintf("Birthday of %s on %s %s %d%s — %d years ago",
+					verboseName, dayNum, hmonth, e.HuledesYear, dobParens, n)
+			}
+			return fmt.Sprintf("Birthday of %s on %s %s %d", verboseName, dayNum, hmonth, hyear)
+		}
+
+		// Non-birthday event (e.g. "Marriage of Rebbe and Rebbetzin",
+		// "Rosh Hashanah of Chassidism"): return the event title and Hebrew date.
+		return fmt.Sprintf("%s on %s %s %d", event, dayNum, hmonth, hyear)
+	}

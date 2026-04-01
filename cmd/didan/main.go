@@ -23,14 +23,19 @@ import (
 	"github.com/toobuntu/zman-didan/internal/types"
 )
 
+// validLangs lists accepted --lang values.
+// h   = Hebrew with nikud (default)
+// hn  = Hebrew, no nikud
+// a   = Ashkenazi transliteration only
+// ah  = Ashkenazi + Hebrew (nikud from enrichment fetch)
+// ahn = Ashkenazi + Hebrew, no nikud
+// s   = Sefardi
+// sh  = Sefardi + Hebrew
+// shn = Sefardi + Hebrew, no nikud
 var validLangs = map[string]struct{}{
-	"he":           {},
-	"he-x-NoNikud": {},
-	"a":            {},
-	"ah":           {},
-	"ah-x-NoNikud": {},
-	"s":            {},
-	"sh":           {},
+	"h": {}, "hn": {},
+	"a": {}, "ah": {}, "ahn": {},
+	"s": {}, "sh": {}, "shn": {},
 }
 
 func main() {
@@ -63,7 +68,7 @@ func main() {
 		Short: "Generate the calendar",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if _, ok := validLangs[lang]; !ok {
-				return fmt.Errorf("--lang must be one of: he, he-x-NoNikud, a, ah, ah-x-NoNikud, s, sh")
+				return fmt.Errorf("--lang must be one of: h, hn, a, ah, ahn, s, sh, shn")
 			}
 			if _, err := os.Stat(output); os.IsNotExist(err) {
 				return fmt.Errorf("output directory does not exist: %s", output)
@@ -162,12 +167,12 @@ func main() {
 	f.StringVar(&name, "name", "", "Location display name; required with --lat/--lon")
 	f.StringVar(&geoname, "geoname", "", "GeoNames.org numeric ID")
 
-	f.StringVar(&lang, "lang", "he", "Language: he (default), he-x-NoNikud, a, ah, ah-x-NoNikud, s, sh")
+	f.StringVar(&lang, "lang", "h", "Language: h, hn, a, ah, ahn, s, sh, shn")
 	f.IntVar(&candles, "candles", 25, "Minutes before shkiah for candle lighting")
 	f.IntVar(&tosfos, "tosfos", 4, "Minutes added to havdala (tosfos Shabbos/Yom Tov); 0 to disable")
 	f.StringVar(&output, "output", ".", "Output directory")
-	f.BoolVar(&refresh, "refresh", false, "Bypass all caches; re-fetch everything from the network")
-	f.BoolVar(&emojis, "emojis", true, "Prefix event SUMMARY with emoji (🕯️, 🍏🍯, etc.); --emojis=false to disable")
+	f.BoolVar(&refresh, "refresh", false, "Bypass all caches; re-download everything")
+	f.BoolVar(&emojis, "emojis", true, "Prefix event SUMMARY with emoji; --emojis=false to disable")
 	f.BoolVar(&noClobber, "no-clobber", false, "Refuse to overwrite an existing output file")
 
 	root.AddCommand(generate)

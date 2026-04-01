@@ -1,8 +1,25 @@
 // Package haftorah replaces Hebcal haftorah assignments with Chabad-authoritative
-// readings from the embedded haftorah_chabad.json table.
+// readings.
 //
-// NOTE: haftorah_chabad.json requires verification against
-// https://www.chabad.org/library/article_cdo/aid/4158333 before distribution.
+// # Source priority
+//
+// Two sources provide Chabad haftorahs, applied in this order of preference:
+//
+//  1. ev.Leyning.HaftarahChabad — populated from the Hebcal API's haftarah_chabad
+//     field (live on www.hebcal.com as of 2026-03-30, hebcal-rest-api v6.4.1+,
+//     github.com/hebcal/hebcal-rest-api/issues/715). Non-null only when Chabad
+//     custom differs from Ashkenazi standard. When null, ev.Leyning.Haftarah
+//     (the Ashkenazi standard reading) is already correct for Chabad.
+//
+//  2. haftorah_chabad.json — embedded fallback table keyed by parsha slug.
+//     Retained as insurance for edge cases and special Shabbatot not yet
+//     verified against the live API. Compare a full year's API output against
+//     this table, verify against chabad.org/library/article_cdo/aid/4158333,
+//     then remove.
+//
+// Known discrepancy between embedded JSON and live API: Tzav is
+// "Jeremiah 7:21-8:3, 9:22-23" in the embedded table but "Jeremiah 7:21-28,
+// 9:22-23" from the API. The API value is authoritative.
 package haftorah
 
 import (
@@ -23,6 +40,8 @@ type entry struct {
 var haftoreLine = regexp.MustCompile(`(?i)Haftarah:[^\n]+`)
 
 // Patch replaces Hebcal haftorah references with Chabad assignments.
+// It prefers ev.Leyning.HaftarahChabad (from the Hebcal API) when present,
+// and falls back to the embedded haftorah_chabad.json table otherwise.
 func Patch(events []types.HebcalEvent) error {
 	table, err := loadTable()
 	if err != nil {
@@ -33,11 +52,20 @@ func Patch(events []types.HebcalEvent) error {
 		if ev.Category != "parashat" && ev.Subcat != "special-shabbat" {
 			continue
 		}
-		ent, ok := table[ev.Slug]
-		if !ok {
+
+		var newRef string
+		if ev.Leyning != nil && ev.Leyning.HaftarahChabad != "" {
+			// API field present: Chabad reading differs from Ashkenazi standard.
+			newRef = ev.Leyning.HaftarahChabad
+		} else if ent, ok := table[ev.Slug]; ok {
+			// Fallback: embedded table (insurance while API coverage is verified).
+			newRef = fmt.Sprintf("%s %s", ent.Book, ent.Ref)
+		} else {
+			// null haftarah_chabad + no embedded entry: Chabad follows the
+			// standard haftarah already present in ev.Leyning.Haftarah.
 			continue
 		}
-		newRef := fmt.Sprintf("%s %s", ent.Book, ent.Ref)
+
 		if ev.Leyning != nil {
 			ev.Leyning.Haftarah = newRef
 		}

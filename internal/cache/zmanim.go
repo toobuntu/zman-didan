@@ -1,10 +1,12 @@
-// Package cache implements a persistent JSON cache for per-date zmanim.
+// Package cache implements persistent caches for didan's external data sources.
 //
-// Cache file: ~/.cache/didan/zmanim.json
-// Keys:       "YYYY-MM-DD|ZIP"
-// Eviction:   entries whose date is strictly before today are pruned on every
+// ZmanimCache: file-backed JSON store for per-date zmanim, keyed "YYYY-MM-DD|locationID".
+// Entries are pruned when their date is more than zmanimRetention days in the past.
 //
-//	write, and on an explicit Prune call.
+// Zmanim data is deterministic for a given date and location — it never changes.
+// The retention window exists only to prevent unbounded cache growth, not to
+// enforce freshness. Pruning on "before today" would re-fetch every past date
+// on every run; a rolling 30-day window avoids that while bounding storage.
 package cache
 
 import (
@@ -18,12 +20,12 @@ import (
 	"github.com/toobuntu/zman-didan/internal/types"
 )
 
-func defaultPath() string {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "zmanim.json"
-	}
-	return filepath.Join(home, ".cache", "didan", "zmanim.json")
+// zmanimRetention is how far into the past we keep cached zmanim entries.
+// Dates older than this are pruned to prevent unbounded growth.
+const zmanimRetention = 30 * 24 * time.Hour
+
+func defaultZmanimPath() string {
+	return filepath.Join(CacheBaseDir(), "zmanim.json")
 }
 
 type entry struct {
@@ -41,7 +43,6 @@ type entry struct {
 }
 
 // ZmanimCache is a file-backed key/value store for ZmanimDay values.
-// Construct with New or NewAt.
 type ZmanimCache struct {
 	path string
 	data map[string]entry
@@ -49,7 +50,7 @@ type ZmanimCache struct {
 
 // New returns a ZmanimCache backed by the default path (~/.cache/didan/zmanim.json).
 func New() *ZmanimCache {
-	return NewAt(defaultPath())
+	return NewAt(defaultZmanimPath())
 }
 
 // NewAt returns a ZmanimCache backed by the given file path.
@@ -57,12 +58,12 @@ func NewAt(path string) *ZmanimCache {
 	return &ZmanimCache{path: path}
 }
 
-// Get returns the cached ZmanimDay for date+zip, or (zero, false) on a miss.
-func (c *ZmanimCache) Get(date time.Time, zip string) (types.ZmanimDay, bool) {
+// Get returns the cached ZmanimDay for date+locationID, or (zero, false) on miss.
+func (c *ZmanimCache) Get(date time.Time, locationID string) (types.ZmanimDay, bool) {
 	if err := c.load(); err != nil {
 		return types.ZmanimDay{}, false
 	}
-	e, ok := c.data[cacheKey(date, zip)]
+	e, ok := c.data[cacheKey(date, locationID)]
 	if !ok {
 		return types.ZmanimDay{}, false
 	}
@@ -73,17 +74,18 @@ func (c *ZmanimCache) Get(date time.Time, zip string) (types.ZmanimDay, bool) {
 	return z, true
 }
 
-// Set stores a ZmanimDay, prunes stale entries, and persists to disk.
-func (c *ZmanimCache) Set(date time.Time, zip string, z types.ZmanimDay) error {
+// Set stores a ZmanimDay and persists to disk. Does not prune — pruning is
+// done once per run via Prune() at startup to avoid redundant file writes.
+func (c *ZmanimCache) Set(date time.Time, locationID string, z types.ZmanimDay) error {
 	if err := c.load(); err != nil {
 		return err
 	}
-	c.data[cacheKey(date, zip)] = serialize(z)
-	c.prune()
+	c.data[cacheKey(date, locationID)] = serialize(z)
 	return c.save()
 }
 
-// Prune removes entries whose date is before today and saves if anything changed.
+// Prune removes entries older than zmanimRetention and saves only if anything changed.
+// Call once per run before the fetch loop.
 func (c *ZmanimCache) Prune() error {
 	if err := c.load(); err != nil {
 		return err
@@ -126,19 +128,20 @@ func (c *ZmanimCache) save() error {
 	return os.WriteFile(c.path, b, 0o644)
 }
 
+// prune removes entries whose date is older than zmanimRetention.
 func (c *ZmanimCache) prune() {
-	today := time.Now().Truncate(24 * time.Hour)
+	cutoff := time.Now().Add(-zmanimRetention)
 	for k := range c.data {
 		datePart := strings.SplitN(k, "|", 2)[0]
 		t, err := time.Parse("2006-01-02", datePart)
-		if err != nil || t.Before(today) {
+		if err != nil || t.Before(cutoff) {
 			delete(c.data, k)
 		}
 	}
 }
 
-func cacheKey(date time.Time, zip string) string {
-	return fmt.Sprintf("%s|%s", date.Format("2006-01-02"), zip)
+func cacheKey(date time.Time, locationID string) string {
+	return fmt.Sprintf("%s|%s", date.Format("2006-01-02"), locationID)
 }
 
 func serialize(z types.ZmanimDay) entry {

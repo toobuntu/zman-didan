@@ -37,6 +37,7 @@ import (
 
 	ical "github.com/arran4/golang-ical"
 
+	"github.com/toobuntu/zman-didan/internal/cache"
 	"github.com/toobuntu/zman-didan/internal/embeddata"
 	"github.com/toobuntu/zman-didan/internal/transliterator"
 	"github.com/toobuntu/zman-didan/internal/types"
@@ -66,6 +67,10 @@ var yahrzeitRe = regexp.MustCompile(
 	`Hebcal joins you in remembering (.+?), whose (\d+)(?:st|nd|rd|th) Yahrzeit occurs on .+?, corresponding to the (\d+)(?:st|nd|rd|th) of ([A-Za-z]+), (\d+)`)
 
 // birthdayRe matches Hebcal birthday/event description boilerplate.
+// This pattern matches both birthday events ("Birthday of X occurs on...")
+// and non-birthday events ("Marriage of ... occurs on...", etc.).
+// The reformatDescription function checks whether the matched event text
+// starts with "Birthday of " before applying birthday-specific formatting.
 // Groups: (1) event text, (2) day, (3) Hebrew month, (4) Hebrew year of observance.
 var birthdayRe = regexp.MustCompile(
 	`(.+?) occurs on .+?, corresponding to the (\d+)(?:st|nd|rd|th) of ([A-Za-z]+), (\d+)`)
@@ -132,17 +137,18 @@ func buildNameMap() map[string]string {
 	return m
 }
 
-// Merge fetches special dates, filters to the given range, and applies the
-// full transformation pipeline. doAshkenazi controls whether Ashkenazi
-// transliterations are applied; set to false for he/s/sh modes.
-func Merge(tzid string, stripNikud, doAshkenazi bool, rangeStart, rangeEnd time.Time) ([]types.HebcalEvent, error) {
-	body, err := fetch()
+// Merge loads special dates (from cache or network), filters to the given
+// range, and applies the full transformation pipeline.
+// doAshkenazi controls whether Ashkenazi transliterations are applied.
+// fromCache is true when the ICS body was served from disk.
+func Merge(tzid string, stripNikud, doAshkenazi bool, rangeStart, rangeEnd time.Time, hc *cache.HTTPCache, refresh bool) (events []types.HebcalEvent, fromCache bool, err error) {
+	body, fromCache, err := fetchSpecialDates(hc, refresh)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
-	events, err := parse(body, tzid)
+	events, err = parse(body, tzid)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	if !rangeStart.IsZero() && !rangeEnd.IsZero() {
@@ -167,7 +173,7 @@ func Merge(tzid string, stripNikud, doAshkenazi bool, rangeStart, rangeEnd time.
 	if err := applyChitasSummaries(events); err != nil {
 		fmt.Printf("Warning: Chitas summaries: %v\n", err)
 	}
-	return events, nil
+	return events, fromCache, nil
 }
 
 func normalizeNames(events []types.HebcalEvent, names map[string]string) {
@@ -182,14 +188,6 @@ func normalizeNames(events []types.HebcalEvent, names map[string]string) {
 
 // shortenTitles rewrites verbose SUMMARY values into short calendar titles.
 // Runs after normalizeNames so honorifics are already in place.
-//
-// Feed formats → output:
-//
-//	"the Rebbe Rashab\u2019s 106th Yahrzeit (2nd of Nisan)" → "Rebbe Rashab's Histalkus"
-//	"Tzemach Tzeddek\u2019s 160th Yahrzeit (13th of Nisan)" → "Tzemach Tzedek's Histalkus"
-//	"Birthday of the Rebbe (11th of Nisan)"                 → "Rebbe's Birthday"
-//
-// Leading "the" is dropped in possessive constructions.
 func shortenTitles(events []types.HebcalEvent) {
 	for i := range events {
 		ev := &events[i]
@@ -214,16 +212,28 @@ func shortenTitle(s string) string {
 	return s
 }
 
-func fetch() ([]byte, error) {
+func fetchSpecialDates(hc *cache.HTTPCache, refresh bool) ([]byte, bool, error) {
+	if !refresh {
+		if body, ok := hc.Get(specialDatesURL); ok {
+			return body, true, nil
+		}
+	}
 	resp, err := (&http.Client{Timeout: 30 * time.Second}).Get(specialDatesURL)
 	if err != nil {
-		return nil, fmt.Errorf("fetching special dates ICS: %w", err)
+		return nil, false, fmt.Errorf("downloading Chabad special dates: %w", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("special dates ICS returned HTTP %d", resp.StatusCode)
+		return nil, false, fmt.Errorf("special dates returned HTTP %d", resp.StatusCode)
 	}
-	return io.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, false, err
+	}
+	if setErr := hc.Set(specialDatesURL, body); setErr != nil {
+		fmt.Printf("Warning: could not cache special dates: %v\n", setErr)
+	}
+	return body, false, nil
 }
 
 func parse(body []byte, tzid string) ([]types.HebcalEvent, error) {
@@ -284,6 +294,10 @@ func convertEvent(ev *ical.VEvent, tz *time.Location) *types.HebcalEvent {
 //
 //	→ "Birthday of NAME on DAY HMONTH HULEDES_YEAR (DOB_GREG) — N years ago"
 //	→ "Birthday of NAME on DAY HMONTH OBSERVANCE_YEAR"  (year unknown)
+//
+// Other events (e.g. "Marriage of Rebbe and Rebbetzin", "Rosh Hashanah of
+// Chassidism") match the same "X occurs on..." boilerplate as birthdays.
+// They are returned as "EVENT on DAY HMONTH YEAR".
 func reformatDescription(s string) string {
 	if m := yahrzeitRe.FindStringSubmatch(s); m != nil {
 		name := strings.TrimSpace(m[1])
@@ -309,20 +323,26 @@ func reformatDescription(s string) string {
 		event := strings.TrimSpace(m[1])
 		dayNum, hmonth := m[2], m[3]
 		hyear, _ := strconv.Atoi(m[4])
-		verboseName := strings.TrimPrefix(event, "Birthday of ")
-		if e := findByVerboseName(verboseName, 0); e != nil && e.HuledesYear > 0 {
-			n := hyear - e.HuledesYear
-			dobParens := ""
-			if e.HuledesGregorian != "" {
-				dobParens = " (" + formatGregorian(e.HuledesGregorian) + ")"
+
+		if strings.HasPrefix(event, "Birthday of ") {
+			verboseName := strings.TrimPrefix(event, "Birthday of ")
+			if e := findByVerboseName(verboseName, 0); e != nil && e.HuledesYear > 0 {
+				n := hyear - e.HuledesYear
+				dobParens := ""
+				if e.HuledesGregorian != "" {
+					dobParens = " (" + formatGregorian(e.HuledesGregorian) + ")"
+				}
+				return fmt.Sprintf("Birthday of %s on %s %s %d%s — %d years ago",
+					verboseName, dayNum, hmonth, e.HuledesYear, dobParens, n)
 			}
-			return fmt.Sprintf("Birthday of %s on %s %s %d%s — %d years ago",
-				verboseName, dayNum, hmonth, e.HuledesYear, dobParens, n)
+			return fmt.Sprintf("Birthday of %s on %s %s %d", verboseName, dayNum, hmonth, hyear)
 		}
-		return fmt.Sprintf("Birthday of %s on %s %s %d", verboseName, dayNum, hmonth, hyear)
+
+		// Non-birthday event: return title with Hebrew date, no boilerplate.
+		return fmt.Sprintf("%s on %s %s %d", event, dayNum, hmonth, hyear)
 	}
 
-	// Unknown pattern: strip leading boilerplate only.
+	// Remaining patterns: strip leading boilerplate only.
 	if idx := strings.Index(s, " begins at sundown on "); idx >= 0 {
 		s = strings.TrimSpace(s[:idx])
 	}
