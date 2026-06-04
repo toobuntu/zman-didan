@@ -1,9 +1,16 @@
-// Package transliterator applies Ashkenazi substitutions to event Title,
-// Description, and Memo fields, and optionally strips Hebrew nikud.
+// Package transliterator applies Ashkenazi substitutions to event fields,
+// and optionally strips Hebrew nikud.
 //
-// The substitution table is loaded from the embedded transliterations.json
-// and applied longest-source-first to prevent partial replacements
-// (e.g. "Shemini Atzeres" must replace before "Atzeres" alone).
+// transliterations.json has two scopes:
+//
+//   - "title_only": biblical book names (Genesis → Bereishis, etc.) applied
+//     only to Title and Memo. NOT applied to Description, where these words
+//     appear as English prose (e.g. "commemorates the Exodus from Egypt").
+//
+//   - "all": holiday and parsha names applied to Title, Description, and Memo.
+//
+// Both tables are sorted longest-source-first to prevent partial replacements
+// (e.g. "Shemini Atzeres" must match before a hypothetical "Atzeres" entry).
 package transliterator
 
 import (
@@ -19,38 +26,51 @@ import (
 	"github.com/toobuntu/zman-didan/internal/types"
 )
 
+type tables struct {
+	TitleOnly [][2]string `json:"title_only"`
+	All       [][2]string `json:"all"`
+}
+
 var (
-	tableOnce sync.Once
-	table     [][2]string
+	once       sync.Once
+	titleTable [][2]string
+	allTable   [][2]string
 )
 
-// loadTable parses transliterations.json and sorts longest-source-first.
-// Called once; result is cached in the package-level table variable.
-func loadTable() [][2]string {
-	tableOnce.Do(func() {
-		var pairs [][2]string
-		if err := json.Unmarshal(embeddata.TransliterationsJSON, &pairs); err != nil {
+func loadTables() {
+	once.Do(func() {
+		var t tables
+		if err := json.Unmarshal(embeddata.TransliterationsJSON, &t); err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: loading transliterations.json: %v\n", err)
 			return
 		}
-		sort.Slice(pairs, func(i, j int) bool {
-			return len(pairs[i][0]) > len(pairs[j][0])
-		})
-		table = pairs
+		sortLongestFirst := func(pairs [][2]string) {
+			sort.Slice(pairs, func(i, j int) bool {
+				return len(pairs[i][0]) > len(pairs[j][0])
+			})
+		}
+		sortLongestFirst(t.TitleOnly)
+		sortLongestFirst(t.All)
+		titleTable = t.TitleOnly
+		allTable = t.All
 	})
-	return table
 }
 
-// Apply runs the Ashkenazi substitution table over all event Title,
-// Description, and Memo fields. If stripNikud is true, Hebrew nikud
-// codepoints (U+05B0–U+05C7) are also removed.
+// Apply runs the Ashkenazi substitution tables over event fields.
+// title_only substitutions (biblical book names) apply to Title and Memo.
+// all substitutions apply to Title, Description, and Memo.
+// If stripNikud is true, Hebrew nikud codepoints are also removed.
 func Apply(events []types.HebcalEvent, stripNikud bool) {
-	t := loadTable()
+	loadTables()
 	for i := range events {
 		ev := &events[i]
-		ev.Title = applyTable(ev.Title, t)
-		ev.Description = applyTable(ev.Description, t)
-		ev.Memo = applyTable(ev.Memo, t)
+		// Apply all-scope table first (longer matches first).
+		ev.Title = applyTable(ev.Title, allTable)
+		ev.Description = applyTable(ev.Description, allTable)
+		ev.Memo = applyTable(ev.Memo, allTable)
+		// Apply title-only table to Title and Memo (not Description).
+		ev.Title = applyTable(ev.Title, titleTable)
+		ev.Memo = applyTable(ev.Memo, titleTable)
 		if stripNikud {
 			ev.Title = removeNikud(ev.Title)
 			ev.Hebrew = removeNikud(ev.Hebrew)
