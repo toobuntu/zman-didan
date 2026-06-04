@@ -269,24 +269,18 @@ func normalizeEvent(item apiItem, tzid string) (types.HebcalEvent, error) {
 		return types.HebcalEvent{}, fmt.Errorf("parsing date %q: %w", item.Date, err)
 	}
 	return types.HebcalEvent{
-		Date:     date,
-		AllDay:   allDay,
-		Category: item.Category,
-		Subcat:   item.Subcat,
-		Title:    item.Title,
-		Hebrew:   item.Hebrew,
-		Memo:     item.Memo,
-		Link:     item.Link,
-		HDate:    item.HDate,
-		Slug:     extractSlug(item.Link),
-		Leyning:  normalizeLeyning(item.Leyning),
+		Date: date, AllDay: allDay, Category: item.Category, Subcat: item.Subcat,
+		Title: item.Title, Hebrew: item.Hebrew, Memo: item.Memo, Link: item.Link,
+		HDate: item.HDate, Slug: extractSlug(item.Link), Leyning: normalizeLeyning(item.Leyning),
 	}, nil
 }
 
 // normalizeLeyning extracts string-valued fields from the raw leyning map.
-// Non-string values are silently skipped:
-//   - "triennial": nested object (Conservative cycle — not used)
-//   - "haftaraNumV": integer verse count
+// Non-string values (triennial object, haftaraNumV integer) are silently skipped.
+//
+// haftarah_chabad is populated by Hebcal when the Chabad reading differs from
+// Ashkenazi standard (live on www.hebcal.com as of 2026-03-30). Non-null only
+// when Chabad custom differs; null means Chabad follows the standard haftarah.
 func normalizeLeyning(m map[string]json.RawMessage) *types.Leyning {
 	if len(m) == 0 {
 		return nil
@@ -306,6 +300,8 @@ func normalizeLeyning(m map[string]json.RawMessage) *types.Leyning {
 			l.Torah = s
 		case "haftarah":
 			l.Haftarah = s
+		case "haftarah_chabad":
+			l.HaftarahChabad = s
 		case "maftir":
 			l.Maftir = s
 		default:

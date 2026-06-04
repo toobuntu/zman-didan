@@ -46,11 +46,17 @@ type HebcalEvent struct {
 }
 
 // Leyning holds Torah reading data attached to parashat events.
+//
+// HaftarahChabad is populated from the Hebcal API's haftarah_chabad field
+// once hebcal-rest-api v6.4.1+ is deployed to www.hebcal.com. When present
+// it takes precedence over the embedded haftorah_chabad.json table. The field
+// is empty until deployment; haftorah.Patch falls back to the embedded table.
 type Leyning struct {
-	Torah    string
-	Haftarah string
-	Maftir   string
-	Aliyot   map[string]string
+	Torah         string
+	Haftarah      string
+	HaftarahChabad string // from Hebcal API haftarah_chabad field; preferred when non-empty
+	Maftir        string
+	Aliyot        map[string]string
 }
 
 // ZmanimDay holds halachic times for a single date from chabad.org RSS.
