@@ -1,9 +1,20 @@
-.PHONY: build fmt style scan check test integration clean tidy hooks actionlint reuse
+.PHONY: build install dev fmt style scan check test integration clean tidy hooks actionlint reuse
 
 BINARY := bin/didan
 
 build:
 	go build -o $(BINARY) ./cmd/didan
+
+# install: build and install didan to $(go env GOBIN) or $GOPATH/bin.
+install:
+	go install ./cmd/didan
+
+# dev: install the developer tooling used by the style/scan/actionlint targets.
+# reuse is not go-installable — use `brew install reuse` or `pipx install reuse`.
+dev:
+	go install honnef.co/go/tools/cmd/staticcheck@latest
+	go install golang.org/x/vuln/cmd/govulncheck@latest
+	go install github.com/rhysd/actionlint/cmd/actionlint@latest
 
 # Format all Go source files in place.
 fmt:
