@@ -61,8 +61,9 @@ import (
 )
 
 const (
-	zmanimRSSURL = "https://www.chabad.org/tools/rss/zmanim.xml"
-	candleICSURL = "https://www.chabad.org/calendar/candlelighting/candlelighting.ics.asp"
+	zmanimRSSURL  = "https://www.chabad.org/tools/rss/zmanim.xml"
+	candleICSURL  = "https://www.chabad.org/calendar/candlelighting/candlelighting.ics.asp"
+	candleCacheTTL = 24 * time.Hour
 
 	userAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 )
@@ -93,8 +94,10 @@ func anySubstr(ss ...string) func(string) bool {
 }
 
 // classifierRules are evaluated in order; the first match wins per token.
-// "Misheyakir" matches both weekday and Shabbos/YT label variants since
-// both contain "Misheyakir" as a substring.
+// "Misheyakir" matches both weekday and Shabbos/YT label variants since both
+// contain "Misheyakir" as a substring (the Shabbos/YT label omits "and
+// Tefillin"). This substring approach replaced an exact-match map in 789265a;
+// reverting to exact matching silently drops every Shabbos/Yom-Tov zman.
 var classifierRules = []classifierRule{
 	{match: substr("Alot Hashachar"), field: "alos"},
 	{match: substr("Misheyakir"), field: "misheyakir"},
@@ -164,8 +167,7 @@ func splitLabel(s string) []string {
 // The map key is "YYYY-MM-DD" in the location's local timezone.
 //
 // IsYomTov distinguishes "Light Holiday Candles" (YT) from "Light Shabbat
-// Candles" (Shabbos), enabling the patcher to produce "YT candles" vs
-// "Sh candles" in the event SUMMARY.
+// Candles" (Shabbos).
 //
 // AfterHavdala is true for "Light Holiday Candles after" — second-night Yom
 // Tov candles that must be lit after Havdalah from the first day.
@@ -178,47 +180,66 @@ type CandleDay struct {
 
 // Client fetches from chabad.org.
 type Client struct {
-	httpClient *http.Client
-	cache      *cache.ZmanimCache
+	httpClient  *http.Client
+	zmanimCache *cache.ZmanimCache
+	candleCache *cache.HTTPCache
 }
 
 // NewClient returns a ready Client.
 func NewClient(c *cache.ZmanimCache) *Client {
 	return &Client{
-		httpClient: &http.Client{Timeout: 30 * time.Second},
-		cache:      c,
+		httpClient:  &http.Client{Timeout: 30 * time.Second},
+		zmanimCache: c,
+		candleCache: cache.NewHTTP(candleCacheTTL),
 	}
 }
 
 // FetchZmanimInZone returns zmanim for date. fromCache is true when the result
-// was served from the local disk cache rather than fetched from chabad.org.
+// was served from the local disk cache rather than downloaded from chabad.org.
 func (c *Client) FetchZmanimInZone(date time.Time, loc types.Location, cfg types.Config) (z types.ZmanimDay, fromCache bool, err error) {
-	cacheKey := cfg.LocationID()
+	locationID := cfg.LocationID()
 	if !cfg.Refresh {
-		if cached, ok := c.cache.Get(date, cacheKey); ok {
+		if cached, ok := c.zmanimCache.Get(date, locationID); ok {
 			return cached, true, nil
 		}
 	}
-	z, err = c.fetchRemote(date, loc, cfg.Candles)
+	z, err = c.fetchRemoteZmanim(date, loc, cfg.Candles)
 	if err != nil {
 		return types.ZmanimDay{}, false, err
 	}
-	if setErr := c.cache.Set(date, cacheKey, z); setErr != nil {
+	if setErr := c.zmanimCache.Set(date, locationID, z); setErr != nil {
 		fmt.Printf("Warning: could not cache zmanim for %s: %v\n", date.Format("2006-01-02"), setErr)
 	}
 	return z, false, nil
 }
 
-// FetchCandlesYear fetches a full year of candle lighting and havdalah times.
-// tdate is the start date in "M/D/YYYY" format. The candle ICS is not cached.
+// FetchCandlesYear retrieves a full year of candle lighting and havdalah times.
+// tdate is the start date in "M/D/YYYY" format.
+// fromCache is true when the response was served from disk.
 // The returned map is keyed by "YYYY-MM-DD" in the location's local timezone.
-func (c *Client) FetchCandlesYear(tdate string, loc types.Location, cfg types.Config) (map[string]CandleDay, error) {
+func (c *Client) FetchCandlesYear(tdate string, loc types.Location, cfg types.Config) (map[string]CandleDay, bool, error) {
 	rawURL := buildCandleURL(tdate, loc, cfg)
-	body, err := c.httpGet(rawURL)
-	if err != nil {
-		return nil, fmt.Errorf("fetching Chabad candle ICS: %w", err)
+	var (
+		body      []byte
+		fromCache bool
+		err       error
+	)
+	if !cfg.Refresh {
+		if cached, ok := c.candleCache.Get(rawURL); ok {
+			body, fromCache = cached, true
+		}
 	}
-	return parseCandleICS(body, loc.TZID)
+	if body == nil {
+		body, err = c.httpGetWithUA(rawURL)
+		if err != nil {
+			return nil, false, fmt.Errorf("downloading candle ICS from chabad.org: %w", err)
+		}
+		if setErr := c.candleCache.Set(rawURL, body); setErr != nil {
+			fmt.Printf("Warning: could not cache candle ICS: %v\n", setErr)
+		}
+	}
+	days, err := parseCandleICS(body, loc.TZID)
+	return days, fromCache, err
 }
 
 // ---- URL builders ----
@@ -265,18 +286,18 @@ func ianaToChabad(tzid string) string {
 
 // ---- internal ----
 
-func (c *Client) fetchRemote(date time.Time, loc types.Location, candles int) (types.ZmanimDay, error) {
-	body, err := c.httpGet(buildZmanimURL(date, loc, candles))
+func (c *Client) fetchRemoteZmanim(date time.Time, loc types.Location, candles int) (types.ZmanimDay, error) {
+	body, err := c.httpGetWithUA(buildZmanimURL(date, loc, candles))
 	if err != nil {
-		return types.ZmanimDay{}, fmt.Errorf("fetching zmanim for %s: %w", date.Format("2006-01-02"), err)
+		return types.ZmanimDay{}, fmt.Errorf("downloading zmanim for %s: %w", date.Format("2006-01-02"), err)
 	}
 	return parseZmanimRSS(body, date, loc.TZID)
 }
 
-func (c *Client) httpGet(rawURL string) ([]byte, error) {
+func (c *Client) httpGetWithUA(rawURL string) ([]byte, error) {
 	req, err := http.NewRequest(http.MethodGet, rawURL, nil)
 	if err != nil {
-		return nil, fmt.Errorf("building request for %s: %w", rawURL, err)
+		return nil, fmt.Errorf("building request: %w", err)
 	}
 	req.Header.Set("User-Agent", userAgent)
 	resp, err := c.httpClient.Do(req)
@@ -342,7 +363,6 @@ func applyRSSItem(title string, z *types.ZmanimDay, date time.Time, tz *time.Loc
 	labels := splitLabel(prefix)
 	for _, lbl := range labels {
 		field, isEvent := classifyLabel(lbl)
-
 		if field != "" {
 			t, err := parseLocalTime(timeStr, date, field == "chatzos_halaila", tz)
 			if err != nil {
@@ -350,7 +370,6 @@ func applyRSSItem(title string, z *types.ZmanimDay, date time.Time, tz *time.Loc
 			}
 			setField(z, field, t)
 		}
-
 		if isEvent || field == "" {
 			t, _ := parseLocalTime(timeStr, date, false, tz)
 			if z.Events == nil {
@@ -419,11 +438,8 @@ func setField(z *types.ZmanimDay, field string, t time.Time) {
 // ---- ICS candle parsing ----
 
 // parseCandleICS parses the chabad.org candle lighting ICS and returns a map
-// keyed by "YYYY-MM-DD" in the location's local timezone.
-//
-// Using a string key (not time.Time) avoids Go's time.Time equality semantics,
-// which include the *Location pointer. Multiple time.LoadLocation calls for the
-// same TZID may return different pointers, causing map lookups to fail silently.
+// keyed by "YYYY-MM-DD" in the location's local timezone. The string key
+// avoids time.Time/*Location pointer-equality pitfalls (see patcher/candle.go).
 func parseCandleICS(body []byte, tzid string) (map[string]CandleDay, error) {
 	tz, err := time.LoadLocation(tzid)
 	if err != nil {
@@ -460,7 +476,6 @@ func parseCandleICS(body []byte, tzid string) (map[string]CandleDay, error) {
 		case strings.Contains(text, "Light Shabbat Candles"),
 			strings.Contains(text, "Light Candles"):
 			day.Candles = localTime
-			// IsYomTov=false (Shabbos or generic)
 		case strings.Contains(text, "Shabbat Ends"),
 			strings.Contains(text, "Holiday Ends"),
 			strings.Contains(text, "Yom Tov Ends"):
