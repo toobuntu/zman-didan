@@ -1,138 +1,142 @@
 # Architecture
 
+System design and external-data contracts for `zman-didan`. For build/test
+commands, CLI flags, make targets, language modes, and "where mappings live,"
+see [`CLAUDE.md`](CLAUDE.md) — that file is the operational reference and is
+kept current; this file documents how the pipeline fits together and the
+non-obvious quirks of the upstream data sources. Where the two would duplicate
+a table, the canonical copy lives in `CLAUDE.md`.
+
 ## Module
 
-`github.com/toobuntu/didan`
+`github.com/toobuntu/zman-didan` (binary: `bin/didan`).
 
 ## Pipeline
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │  CLI input (cobra)                                          │
-│  --year 5786 --zip 17601 --lang ah --candles 25             │
+│  --year 5786 --zip 17601 --lang ah --candles 25            │
 └────────────────────────┬────────────────────────────────────┘
                          │  types.Config
                          ▼
 ┌─────────────────────────────────────────────────────────────┐
-│  internal/hebcal  Client.FetchYear()                        │
-│  GET hebcal.com/hebcal?cfg=json&year=5786&yt=H&...          │
-│  → []types.HebcalEvent, types.Location                      │
+│  internal/hebcal  Client.FetchYear()        [HTTPCache]     │
+│  GET hebcal.com/hebcal?cfg=json&...&lg=<mapped>            │
+│  ah/ahn: second GET lg=he → replace ev.Hebrew with nikud   │
+│  → []types.HebcalEvent, types.Location, fromCache          │
 └────────────────────────┬────────────────────────────────────┘
                          │
                          ▼
 ┌─────────────────────────────────────────────────────────────┐
-│  internal/chabad  Client.FetchCandlesYear()                 │
+│  internal/chabad  Client.FetchCandlesYear() [HTTPCache]     │
 │  GET chabad.org/.../candlelighting.ics.asp?weeks=52         │
-│  → map[time.Time]CandleDay  (candles + havdalah by date)    │
+│  → map[string]CandleDay  (string key "YYYY-MM-DD")          │
 └────────────────────────┬────────────────────────────────────┘
                          │
                          ▼
 ┌─────────────────────────────────────────────────────────────┐
-│  internal/chabad  Client.FetchZmanimInZone()  × N dates     │
+│  internal/chabad  Client.FetchZmanimInZone() × N [ZmanimCache]│
 │  GET chabad.org/tools/rss/zmanim.xml?tdate=YYYY-MM-DD       │
-│  cache hit → return cached ZmanimDay                        │
-│  cache miss → fetch → parse RSS → cache → return            │
-│  → map[string]types.ZmanimDay  (keyed by "YYYY-MM-DD")      │
+│  cache hit → cached ZmanimDay; miss → fetch→parse→cache     │
+│  → map[string]types.ZmanimDay  (keyed "YYYY-MM-DD")         │
 └────────────────────────┬────────────────────────────────────┘
                          │
                          ▼
 ┌─────────────────────────────────────────────────────────────┐
 │  internal/patcher  PatchCandles()                           │
-│  For each candles event: replace Date from CandleDay        │
-│  For each havdalah event: replace Date from CandleDay       │
+│  candles + havdalah events: replace Date from CandleDay     │
+│  (havdalah adds the tosfos offset)                          │
 └────────────────────────┬────────────────────────────────────┘
                          │
                          ▼
 ┌─────────────────────────────────────────────────────────────┐
 │  internal/attacher  AttachZmanim()                          │
-│  candles → append shkiah, tzeis to Description              │
-│  havdalah → append misheyakir, latest shema                 │
-│  Pesach night 1 → append chatzos halaila                    │
-│  Tisha B'Av → append chatzos hayom                          │
-│  Chanuka nights → append menora lighting note               │
+│  candles  → append shkiah, tzeis                            │
+│  havdalah → append Shma range (misheyakir–latest shema)     │
+│  Pesach night 1 → chatzos halaila; Tisha B'Av → chatzos     │
+│  Chanuka nights → menora lighting note                      │
 └────────────────────────┬────────────────────────────────────┘
                          │
                          ▼
 ┌─────────────────────────────────────────────────────────────┐
-│  internal/fastday  Build()                                  │
-│  For each fast day: synthesise 2 new timed events           │
-│    Fast Begins: alos (or prev-day shkiah for TB/YK)         │
-│    Fast Ends:   tzeis                                        │
-└────────────────────────┬────────────────────────────────────┘
-                         │
-                         ▼
-┌─────────────────────────────────────────────────────────────┐
-│  internal/alarm  Rebuild()                                  │
-│  Clear all Alarms slices; re-populate per policy table      │
+│  internal/fastday Build() → internal/alarm Rebuild()        │
+│  synthesise fast begin/end events; repopulate VALARM blocks │
 └────────────────────────┬────────────────────────────────────┘
                          │
                          ▼
 ┌─────────────────────────────────────────────────────────────┐
 │  internal/haftorah  Patch()                                 │
-│  Load embedded haftorah_chabad.json                         │
-│  For parashat events: replace haftorah line in Description  │
-│  and update Leyning.Haftarah                                │
+│  prefer ev.Leyning.HaftarahChabad (API haftarah_chabad);    │
+│  fall back to embedded haftorah_chabad.json                 │
 └────────────────────────┬────────────────────────────────────┘
                          │
                          ▼
 ┌─────────────────────────────────────────────────────────────┐
-│  internal/transliterator  Apply()                           │
-│  Longest-match-first substitution on Title + Description    │
-│  If --lang ah-x-NoNikud: strip U+05B0–U+05C7               │
+│  internal/transliterator Apply()  (a/ah/ahn only)           │
+│  longest-match-first substitution on Title/Description/Memo │
+│  hn/ahn/shn: strip nikud (U+05B0–U+05C7)                   │
 └────────────────────────┬────────────────────────────────────┘
                          │
                          ▼
 ┌─────────────────────────────────────────────────────────────┐
-│  internal/cleaner  Clean()                                  │
-│  Remove "Also spelled…", redundant subtitles, JPS lines,    │
-│  collapse blank lines                                       │
-└────────────────────────┬────────────────────────────────────┘
-                         │
-                         ▼
-┌─────────────────────────────────────────────────────────────┐
-│  internal/specialdates  Merge()                             │
-│  Fetch chabad-special-dates.ics                             │
-│  Apply same transliteration + description passes            │
-│  Add Chitas summaries from embedded yomei_dpagra.json       │
-│  Return new events for append + sort                        │
+│  internal/cleaner Clean() → internal/specialdates Merge()   │
+│  strip Hebcal boilerplate; merge Chabad Yomei d'Pagra       │
+│  (special dates via HTTPCache)                              │
 └────────────────────────┬────────────────────────────────────┘
                          │  sort all events by Date
                          ▼
 ┌─────────────────────────────────────────────────────────────┐
 │  internal/icalwriter  Write()                               │
-│  RFC 5545 output with CRLF line endings, 75-octet folding   │
-│  VTIMEZONE block (static for America/New_York; Phase 2 for  │
-│  other zones)                                               │
-│  Timed events: DTSTART;TZID=<tzid>:...  (not UTC)          │
-│  Output: didan_5786_17601.ics                               │
+│  RFC 5545, CRLF, 75-octet folding, bilingual SUMMARY,       │
+│  LOCATION; VTIMEZONE static for America/New_York (Phase 2   │
+│  for other zones)                                           │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-## Key Data Structures
+## Key data structures
 
 ### types.HebcalEvent
 Normalised from Hebcal JSON, mutable throughout the pipeline. `AllDay bool`
-distinguishes date-only events (DTSTART;VALUE=DATE) from timed ones. `Slug`
-is extracted from the Hebcal API link URL for haftorah table lookup.
-`Alarms []Alarm` is populated by the alarm package and serialised by icalwriter.
+distinguishes date-only events (`DTSTART;VALUE=DATE`) from timed ones. `Slug`
+is extracted from the Hebcal link URL for haftorah-table lookup. `Alarms` is
+populated by the alarm package and serialised by icalwriter. `Leyning` carries
+`Haftarah` and `HaftarahChabad` (see Haftorah source priority).
 
 ### types.ZmanimDay
 All `time.Time` fields are in the location's IANA timezone, sourced verbatim
-from the chabad.org RSS feed. No times are computed locally.
+from the chabad.org RSS feed; no times are computed locally. `ShaahZmanitMin`
+is a float64 duration in decimal minutes (60:30 → 60.5).
 
-`ShaahZmanitMin` is a float64 duration in decimal minutes (60:30 → 60.5).
+`ChatzosHalaila` — halachic midnight of the night D→D+1 — is reported in the
+feed for day D as an AM time but physically occurs on D+1; `parseLocalTime`
+detects the AM hour for that field and constructs the value on D+1.
 
-`ChatzosHalaila` — the halachic midnight of the night D→D+1 — is reported in
-the RSS feed for day D as an AM time, but physically occurs on day D+1.
-`parseLocalTime` detects this (AM hour for the chatzos_halaila field) and
-constructs the `time.Time` value on D+1.
+`Misheyakir`'s RSS label differs by day type, which the parser must tolerate:
+weekday `"Earliest Tallit and Tefillin (Misheyakir)"` vs Shabbos/Yom-Tov
+`"Earliest Tallit (Misheyakir)"` (tallis worn, tefillin not). Likewise the
+nightfall that ends Shabbos/YT is labelled `"Shabbat Ends"`/`"Holiday Ends"`
+rather than `"Nightfall (Tzeit Hakochavim)"`. Substring classification (below)
+handles both; an exact-string map historically dropped the Shabbos/YT variants,
+zeroing `Misheyakir` and `Tzeis` on every Shabbos and Yom Tov.
 
 ### cache.ZmanimCache
-JSON file at `~/.cache/didan/zmanim.json`. Map keys: `"YYYY-MM-DD|locationID"`.
-Serialises `time.Time` as RFC3339. Prunes entries where date < today on every
-write. Single-threaded; no locking.
+JSON file at `~/.cache/didan/zmanim.json`, an envelope `{version, entries}` with
+map keys `"YYYY-MM-DD|locationID"`; `time.Time` serialised as RFC3339. The file
+carries `zmanimCacheVersion`; a version mismatch on load discards the whole
+cache and forces a clean re-fetch (bump it whenever parser logic or the field
+set changes — e.g. the Misheyakir variant fix). Zmanim are deterministic per
+date and location and never change, so the 30-day retention window exists only
+to bound storage, not for freshness; `Prune()` runs once per run at startup and
+writes only if entries changed. Single-threaded; no locking.
 
-## Event Identification
+### cache.HTTPCache
+Raw-response cache at `~/.cache/didan/http/`, keyed by `sha256(url)`, with a
+7-day mtime TTL. Backs the Hebcal calendar fetch (including the lg=he nikud
+enrichment second request), the chabad.org candle ICS, and the special-dates
+ICS. `--refresh` bypasses all caches.
+
+## Event identification
 
 | Event | How identified |
 |-------|----------------|
@@ -147,28 +151,39 @@ write. Single-threaded; no locking.
 
 URL: `https://www.chabad.org/tools/rss/zmanim.xml?locationId=ZIP&locationType=2&bDef=0&before=N&tdate=YYYY-MM-DD`
 
-- Returns today's zmanim by default; `tdate` overrides to any date.
-- `tdate` uses `YYYY-MM-DD` format for the RSS endpoint (no slash-encoding issue).
-- The `<guid>` field encodes feed *generation* time — ignored entirely.
-- Field lookup uses prefix matching on `<title>` text; feed reordering is safe.
+- Returns today's zmanim by default; `tdate` overrides to any date
+  (`YYYY-MM-DD`; no slash-encoding issue on this endpoint).
+- The `<guid>` encodes feed *generation* time — ignored entirely.
 
 ### RSS title → ZmanimDay field mapping
 
-| RSS `<title>` prefix | Field |
-|---|---|
-| `Dawn (Alot Hashachar)` | `Alos` |
-| `Earliest Tallit and Tefillin (Misheyakir)` | `Misheyakir` |
-| `Sunrise (Hanetz Hachamah)` | `Sunrise` |
-| `Latest Shema` | `LatestShema` |
-| `Midday (Chatzot Hayom)` | `Chatzos` |
-| `Plag Hamincha` | `PlagHamincha` |
-| `Sunset (Shkiah)` | `Shkiah` |
-| `Nightfall (Tzeit Hakochavim)` | `Tzeis` |
-| `Midnight (Chatzot HaLailah)` | `ChatzosHalaila` (time on D+1) |
-| `Shaah Zmanit (proportional hour)` | `ShaahZmanitMin` (float64) |
+Classification is **substring**, not exact-string, matching: each `<item>`
+title's label is normalised, split, then tested against `classifierRules`
+(`internal/chabad/client.go`) **in order, first match wins**. Substring matching
+is deliberate — it absorbs the weekday/Shabbos/YT label variants that an
+exact-string map cannot. A rule may set a canonical field, mark the token as an
+`Events`-only entry, or both.
 
-Items `Latest Shacharit`, `Earliest Mincha (Mincha Gedolah)`, and
-`Mincha Ketanah` are parsed and discarded.
+| RSS `<title>` substring token(s) | Field | Notes |
+|---|---|---|
+| `Alot Hashachar` | `Alos` | |
+| `Misheyakir` | `Misheyakir` | matches both weekday `Earliest Tallit and Tefillin (Misheyakir)` and Shabbos/YT `Earliest Tallit (Misheyakir)` |
+| `Hanetz Hachamah` / `Sunrise` | `Sunrise` | |
+| `Latest Shema` / `Latest Kriat Shema` | `LatestShema` | |
+| `Chatzot Hayom` / `Midday` | `Chatzos` | |
+| `Plag` | `PlagHamincha` | |
+| `Shkiah` / `Sunset` | `Shkiah` | |
+| `Tzeit Hakochavim` / `Nightfall` | `Tzeis` | plain nightfall |
+| `Shabbat Ends` / `Shabbos Ends` / `Holiday Ends` / `Yom Tov Ends` / `Holiday/Fast Ends` / `Shabbat/Holiday Ends` / `Fast Ends` | `Tzeis` (+ `Events`) | contextual "ends"; also stored as an event so callers can distinguish it from plain nightfall |
+| `Chatzot HaLailah` / `Midnight` | `ChatzosHalaila` | time constructed on D+1 |
+| `Candle Lighting` | `Events` only | context-specific (e.g. Erev YK candles are before shkiah, not tzeis) — no canonical field |
+| `Fast Begins`, `Chametz` | `Events` only | |
+| `Shaah Zmanit (proportional hour)` | `ShaahZmanitMin` (float64) | parsed as a duration, not a clock time |
+
+`normalizeLabel` repairs a known feed defect where two labels run together
+without a delimiter (`"Sunset (Shkiah)Fast Begins"` → `"… | Fast Begins"`).
+Unrecognised labels are preserved as `Events`. Items such as `Latest Shacharit`
+and the Mincha times are parsed and discarded.
 
 ## Chabad Candle Lighting ICS
 
@@ -178,18 +193,21 @@ URL: `https://www.chabad.org/calendar/candlelighting/candlelighting.ics.asp?z=ZI
 ### Lat/lon
 URL: `https://www.chabad.org/calendar/candlelighting/candlelighting.ics.asp?locationType=3&coords=LAT,LON&tzname=TZ&before=N&bdef=0&weeks=52&tdate=M/D/YYYY`
 
-Single fetch for the full year (`weeks=52`). Maximum appears to be 104 weeks (~2y).
-DTSTART values are UTC (`…Z`), converted to local time via `time.In(tz)`.
+Single fetch for the full year (`weeks=52`; max ~104). `DTSTART` values are UTC
+(`…Z`), converted to local via `time.In(tz)`. The returned map uses a **string**
+key (`"YYYY-MM-DD"`), not `time.Time`: `time.Time` equality includes the
+`*Location` pointer, and repeated `time.LoadLocation` calls for one TZID can
+return different pointers, causing silent map-lookup misses.
 
 Summary patterns → type:
-- `"Light Candles"`, `"Light Holiday Candles"`, `"Light Shabbat Candles"` → Candles
-- `"Shabbat Ends"`, `"Holiday Ends"`, `"Yom Tov Ends"` → Havdalah
+- `Light Candles` / `Light Holiday Candles` / `Light Shabbat Candles` → Candles
+- `Shabbat Ends` / `Holiday Ends` / `Yom Tov Ends` → Havdalah
 
 **tdate encoding**: the endpoint requires literal slashes in `M/D/YYYY`. Go's
-`url.Values.Encode()` percent-encodes `/` → `%2F`, causing HTTP 403. The `tdate`
-parameter is therefore appended raw after encoding all other parameters.
+`url.Values.Encode()` percent-encodes `/` → `%2F`, causing HTTP 403, so `tdate`
+is appended raw after the other parameters are encoded.
 
-## Chabad Geolocation Parameters
+## Chabad geolocation parameters
 
 Confirmed from chabad.org web UI URL patterns (undocumented API):
 
@@ -200,22 +218,50 @@ Confirmed from chabad.org web UI URL patterns (undocumented API):
 | `coords` | — | `LAT,LON` (decimal, comma-separated) |
 | `tzname` | — | IANA timezone with `/` replaced by `*` |
 
-Example: `America/New_York` → `America*New_York`, `Europe/Berlin` → `Europe*Berlin`.
+Example: `America/New_York` → `America*New_York`.
 
-The `n=` parameter (display name) is accepted but not required.
+## Hebcal API
 
-## Fast Day Event Synthesis
+Base: `https://www.hebcal.com/hebcal?v=1&cfg=json`. Key parameters: `year`+`yt=H`
+**or** `start`/`end`; `maj/min/mf/ss/nx/s=on`; `mod=off`; `c=on` (candle
+placeholder); `M=on` (havdalah at tzeis placeholder); `b=N` (candle offset);
+`geo=zip|pos|geoname` with the matching location params; `i=off` (diaspora);
+`leyning=on`; and `lg=<value>`.
 
-For each `Subcat == "fast"` event two new events are appended:
+`--lang` → Hebcal `lg=` mapping (see `CLAUDE.md` for the full table): `h→he`,
+`hn→he-x-NoNikud`, `a→a`, `ah→ah`, `ahn→ah`, `s→s`, `sh→sh`, `shn→sh`. For
+`ah`/`ahn` the `lg=ah` response omits nikud in `hebrew`, so a second `lg=he`
+request supplies nikud and `ev.Hebrew` is replaced by index position (both
+requests share all other parameters, so item ordering matches). `hn`/`ahn`/`shn`
+additionally strip nikud client-side.
+
+### Leyning JSON shape
+The `leyning` field is a flat object mixing types. String-valued keys consumed:
+`torah`, `haftarah`, `haftarah_chabad`, `maftir`, `1`–`7`. Non-string keys
+(`triennial` object, `haftaraNumV` integer) are skipped. Decoded via
+`map[string]json.RawMessage`, selectively unmarshalling strings.
+
+## Haftorah source priority
+
+`haftorah.Patch` prefers `ev.Leyning.HaftarahChabad` (the API `haftarah_chabad`
+field, live as of 2026-03-30; non-null only when Chabad differs from Ashkenazi
+standard). When it is null, `ev.Leyning.Haftarah` is already correct. The
+embedded `haftorah_chabad.json` is a fallback retained until a full-year
+comparison confirms API coverage (known Tzav discrepancy — the API value is
+authoritative).
+
+## Fast day event synthesis
+
+For each `Subcat == "fast"` all-day event, two timed events are appended:
 
 | Event | DTSTART | VALARM |
 |-------|---------|--------|
-| "[Name] Begins" | `Alos` (or prev-day `Shkiah` for TB/YK) | −2h, −30min |
+| "[Name] Begins" | `Alos` (or prev-day `Shkiah` for Tisha B'Av / Yom Kippur) | −2h, −30min |
 | "[Name] Ends" | `Tzeis` | −15min, PT0S |
 
-UIDs: `didan-{YYYY-MM-DD}-fast-begin-{locationID}` / `…-fast-end-{locationID}`
+UIDs: `didan-{YYYY-MM-DD}-fast-begin-{locationID}` / `…-fast-end-{locationID}`.
 
-## Alarm Policy
+## Alarm policy
 
 | Category | VALARM triggers |
 |----------|----------------|
@@ -225,61 +271,48 @@ UIDs: `didan-{YYYY-MM-DD}-fast-begin-{locationID}` / `…-fast-end-{locationID}`
 | `fast-end` | −15min, PT0S |
 | all-day / others | none |
 
-## Chanuka Menora Note (appended to Description)
+VALARM DESCRIPTION is always `"Event reminder"`.
 
-**Regular night:** l'chatchila window (shkiah–tzeis); b'dieved until tzeis+30min;
-if necessary from Plag HaMincha b'dieved.
+## Chanuka menora note (appended to Description)
 
-**Erev Shabbos** (candles event on same date): from Plag HaMincha before Shabbos candles.
+- **Regular night:** l'chatchila window shkiah–tzeis; b'dieved until tzeis+30min;
+  if necessary from Plag HaMincha b'dieved.
+- **Erev Shabbos** (candles event same date): from Plag HaMincha before Shabbos candles.
+- **Motzoei Shabbos** (havdalah event same date): after Havdalah; earliest is tzeis.
 
-**Motzoei Shabbos** (havdalah event on same date): after Havdalah; earliest is tzeis.
+## Candle lighting title forms
 
-## Hebcal API Parameters
+| chabad.org label | `IsYomTov` | `AfterHavdala` | SUMMARY |
+|-----------------|-----------|----------------|---------|
+| Light Shabbat Candles / Light Candles | false | false | `Candle lighting: 6:52 PM` |
+| Light Holiday Candles | true | false | `YT candles: 7:05 PM` |
+| Light Holiday Candles after | true | true | `YT candles after: 8:12 PM` |
 
-| Param | Value | Notes |
-|-------|-------|-------|
-| `v` | `1` | required |
-| `cfg` | `json` | |
-| `year` | e.g. `5786` | Hebrew year; mutually exclusive with start/end |
-| `yt` | `H` | interpret as Hebrew year |
-| `start`/`end` | `YYYY-MM-DD` | date range; mutually exclusive with year/yt |
-| `maj/min/mf/ss/nx/s` | `on` | holidays, fasts, special Shabbatot, parsha |
-| `mod` | `off` | skip modern Israeli holidays |
-| `c` | `on` | candle lighting placeholder |
-| `M` | `on` | havdalah at tzeis placeholder |
-| `b` | `25` | candle offset (configurable) |
-| `geo` | `zip`/`pos`/`geoname` | location type |
-| `zip` | e.g. `17601` | for `geo=zip` |
-| `latitude`/`longitude`/`tzid` | decimals + IANA | for `geo=pos` |
-| `geonameid` | numeric | for `geo=geoname` |
-| `i` | `off` | diaspora schedule |
-| `lg` | `he`/`a`/`ah`/`he-x-NoNikud` | language |
-| `leyning` | `on` | full kriyah detail |
+The Havdala SUMMARY always begins with the English LTR time so it stays readable
+in bidirectional clients.
 
-## Leyning JSON Shape
+## Data sources
 
-The Hebcal `leyning` field is a flat JSON object mixing types:
-- String keys: `"torah"`, `"haftarah"`, `"maftir"`, `"1"`–`"7"`
-- Non-string keys skipped: `"triennial"` (nested object, Conservative cycle —
-  not used), `"haftaraNumV"` (integer), others
+| Source | Used for | Cache |
+|--------|----------|-------|
+| `hebcal.com/hebcal?cfg=json` | calendar structure, parsha, leyning, Hebrew text | HTTPCache |
+| `chabad.org/tools/rss/zmanim.xml` | all zmanim per date | ZmanimCache |
+| `chabad.org/.../candlelighting.ics.asp` | candle + havdalah times | HTTPCache |
+| `download.hebcal.com/ical/chabad-special-dates.ics` | Yomei d'Pagra | HTTPCache |
+| Embedded JSON | haftorahs (fallback), transliterations, rebbe data, Chitas | (compiled in) |
 
-Decoded via `map[string]json.RawMessage`, selectively unmarshalling strings.
+## Go constructs reference
 
-## Go Constructs Reference
-
-- **`func (c *Client) Method()`** — method on a pointer receiver. Pointer
-  receiver means the method can modify the struct; avoids copying large structs.
-- **`(value, error)`** — Go's canonical way to return a result with a possible
-  error. Caller must check error before using value. No exceptions.
-- **`defer f()`** — schedules `f` to run when the enclosing function returns.
-  Used for cleanup: `defer resp.Body.Close()` immediately after opening.
-- **`if err != nil { return ..., err }`** — explicit error propagation.
-- **`map[string]struct{}`** — idiomatic set; `struct{}` occupies zero bytes.
-- **`//go:embed path`** — compiler directive embedding file bytes into the
-  binary at build time. Used for JSON in `internal/embeddata`.
-- **`time.Parse("2006-01-02", s)`** — Go uses the specific reference time
-  `Mon Jan 2 15:04:05 MST 2006` as its format template. `2006` = year,
-  `01` = month, `02` = day, `15` = 24h hour, `04` = minute, `05` = second,
-  `3` = 12h hour, `PM` = AM/PM indicator.
-- **`sort.Slice(s, func(i, j int) bool { ... })`** — in-place sort with a
-  comparator closure. `i` and `j` are indices; return true if `s[i] < s[j]`.
+- **`func (c *Client) Method()`** — pointer receiver; method can mutate the
+  struct and avoids copying it.
+- **`(value, error)`** — canonical result+error return; check the error before
+  using the value.
+- **`defer f()`** — runs `f` when the enclosing function returns; used for
+  cleanup (`defer resp.Body.Close()`).
+- **`map[string]struct{}`** — idiomatic set; `struct{}` is zero-width.
+- **`//go:embed path`** — embeds file bytes into the binary at build time
+  (`internal/embeddata`).
+- **`time.Parse("2006-01-02", s)`** — Go's reference-time layout
+  (`Mon Jan 2 15:04:05 MST 2006`): `2006` year, `01` month, `02` day,
+  `15` 24h hour, `04` minute, `05` second, `3` 12h hour, `PM` meridiem.
+- **`sort.Slice(s, less)`** — in-place sort with a `less(i, j) bool` closure.
