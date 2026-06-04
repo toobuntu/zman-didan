@@ -1,4 +1,4 @@
-.PHONY: build fmt style scan check clean tidy hooks
+.PHONY: build fmt style scan check test integration clean tidy hooks actionlint reuse
 
 BINARY := bin/didan
 
@@ -26,8 +26,17 @@ style:
 scan:
 	govulncheck ./...
 
-# check: full local suite mirroring CI (style + scan)
-check: style scan
+# test: run all unit tests with -count=1 to bypass the Go test result cache
+test:
+	go test -count=1 ./...
+
+# integration: run tests that make real network requests (hebcal.com, chabad.org)
+# Requires network access; excluded from normal `make test` by build tag.
+integration:
+	go test -count=1 -tags integration -timeout 60s ./internal/integration/
+
+# check: full local suite mirroring CI (style + scan + test)
+check: style scan test
 
 # Lint workflow files.
 # Install: brew install actionlint  OR  go install github.com/rhysd/actionlint/cmd/actionlint@latest
