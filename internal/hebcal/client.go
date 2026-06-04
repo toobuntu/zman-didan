@@ -1,5 +1,29 @@
 // Package hebcal fetches and normalises Hebrew calendar data from the
 // Hebcal JSON API.
+//
+// Language modes and Hebcal lg= mapping:
+//
+//	h   → lg=he          (Hebrew with nikud)
+//	hn  → lg=he-x-NoNikud  (Hebrew, Hebcal strips nikud)
+//	a   → lg=a           (Ashkenazi transliteration only)
+//	ah  → lg=ah          (Ashkenazi + Hebrew, no nikud from API)
+//	ahn → lg=ah          (Ashkenazi + Hebrew, nikud stripped client-side)
+//	s   → lg=s           (Sefardi)
+//	sh  → lg=sh          (Sefardi + Hebrew)
+//	shn → lg=sh          (Sefardi + Hebrew, nikud stripped client-side)
+//
+// Nikud enrichment: for ah/ahn modes the Hebcal API does not return nikud
+// in the hebrew field. A second request with lg=he is made to obtain nikud,
+// and ev.Hebrew is replaced from that response. Both requests are cached via
+// HTTPCache so the second call costs nothing after the first run.
+//
+// Leyning fields of interest in the API response (all under items[].leyning):
+//   - haftarah          Ashkenazi standard haftarah
+//   - haftarah_chabad   Chabad haftarah when it differs from Ashkenazi standard
+//   - haftarah_sephardic  Sephardic haftarah when it differs
+//   - ashkenazi_standard  Same as haftarah (Ashkenazi standard)
+//   - ashkenazi_litvish   Lithuanian Ashkenazi variant; potentially closest to
+//     Chabad Yiddish pronunciation, but unverified against actual Chabad usage
 package hebcal
 
 import (
@@ -12,13 +36,22 @@ import (
 	"strings"
 	"time"
 
+	"github.com/toobuntu/zman-didan/internal/cache"
 	"github.com/toobuntu/zman-didan/internal/types"
 )
 
-const baseURL = "https://www.hebcal.com/hebcal"
+const (
+	baseURL      = "https://www.hebcal.com/hebcal"
+	httpCacheTTL = 24 * time.Hour
+)
 
-var langAPIParam = map[string]string{
-	"ah-x-NoNikud": "ah",
+// langToAPIParam maps didan lang codes to Hebcal lg= parameter values.
+// Codes not listed here are passed directly.
+var langToAPIParam = map[string]string{
+	"h":   "he",
+	"hn":  "he-x-NoNikud",
+	"ahn": "ah",
+	"shn": "sh",
 }
 
 var slugRe = regexp.MustCompile(`/[hs]/([a-z][a-z0-9-]+)-\d{4}`)
@@ -26,26 +59,31 @@ var slugRe = regexp.MustCompile(`/[hs]/([a-z][a-z0-9-]+)-\d{4}`)
 // Client fetches from the Hebcal API.
 type Client struct {
 	httpClient *http.Client
+	httpCache  *cache.HTTPCache
 }
 
 // NewClient returns a Client with sensible timeout defaults.
 func NewClient() *Client {
-	return &Client{httpClient: &http.Client{Timeout: 30 * time.Second}}
+	return &Client{
+		httpClient: &http.Client{Timeout: 30 * time.Second},
+		httpCache:  cache.NewHTTP(httpCacheTTL),
+	}
 }
 
 // FetchYear retrieves all events and the resolved location for cfg.
-func (c *Client) FetchYear(cfg types.Config) ([]types.HebcalEvent, types.Location, error) {
-	u := buildURL(cfg)
-	body, err := c.get(u)
+// Returns fromCache=true when the primary response was served from disk.
+func (c *Client) FetchYear(cfg types.Config) (events []types.HebcalEvent, loc types.Location, fromCache bool, err error) {
+	u := buildURL(cfg, "")
+	body, fromCache, err := c.get(u, cfg.Refresh)
 	if err != nil {
-		return nil, types.Location{}, err
+		return nil, types.Location{}, false, err
 	}
 	var resp apiResponse
 	if err := json.Unmarshal(body, &resp); err != nil {
-		return nil, types.Location{}, fmt.Errorf("parsing Hebcal response: %w", err)
+		return nil, types.Location{}, false, fmt.Errorf("parsing Hebcal response: %w", err)
 	}
-	loc := normalizeLocation(resp.Location, cfg)
-	events := make([]types.HebcalEvent, 0, len(resp.Items))
+	loc = normalizeLocation(resp.Location, cfg)
+	events = make([]types.HebcalEvent, 0, len(resp.Items))
 	for _, item := range resp.Items {
 		ev, err := normalizeEvent(item, loc.TZID)
 		if err != nil {
@@ -54,12 +92,50 @@ func (c *Client) FetchYear(cfg types.Config) ([]types.HebcalEvent, types.Locatio
 		}
 		events = append(events, ev)
 	}
-	return events, loc, nil
+
+	// For Ashkenazi modes, the API does not return nikud in the hebrew field.
+	// Fetch again with lg=he to replace ev.Hebrew with nikud-bearing text.
+	if needsNikudEnrichment(cfg.Lang) {
+		c.enrichHebrew(events, cfg)
+	}
+
+	return events, loc, fromCache, nil
 }
 
-func buildURL(cfg types.Config) string {
+// needsNikudEnrichment reports whether a second lg=he fetch is needed to
+// populate ev.Hebrew with nikud.
+func needsNikudEnrichment(lang string) bool {
+	return lang == "ah" || lang == "ahn"
+}
+
+// enrichHebrew fetches the calendar again with lg=he and replaces ev.Hebrew
+// by position. Both fetches are cached so the second call is free on repeat runs.
+func (c *Client) enrichHebrew(events []types.HebcalEvent, cfg types.Config) {
+	u := buildURL(cfg, "he")
+	body, _, err := c.get(u, cfg.Refresh)
+	if err != nil {
+		fmt.Printf("Warning: nikud enrichment fetch failed: %v\n", err)
+		return
+	}
+	var resp apiResponse
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return
+	}
+	// Replace ev.Hebrew by index position — both API calls use identical
+	// parameters except lg=, so event ordering is guaranteed to match.
+	for i := range events {
+		if i >= len(resp.Items) {
+			break
+		}
+		events[i].Hebrew = resp.Items[i].Hebrew
+	}
+}
+
+func buildURL(cfg types.Config, langOverride string) string {
 	lg := cfg.Lang
-	if mapped, ok := langAPIParam[lg]; ok {
+	if langOverride != "" {
+		lg = langOverride
+	} else if mapped, ok := langToAPIParam[lg]; ok {
 		lg = mapped
 	}
 
@@ -105,16 +181,32 @@ func buildURL(cfg types.Config) string {
 	return baseURL + "?" + params.Encode()
 }
 
-func (c *Client) get(rawURL string) ([]byte, error) {
+// get retrieves rawURL, using the HTTPCache unless refresh is true.
+// Returns the body and whether it was served from cache.
+// Go's default HTTP transport adds Accept-Encoding: gzip automatically and
+// handles transparent decompression; no explicit header is needed.
+func (c *Client) get(rawURL string, refresh bool) ([]byte, bool, error) {
+	if !refresh {
+		if body, ok := c.httpCache.Get(rawURL); ok {
+			return body, true, nil
+		}
+	}
 	resp, err := c.httpClient.Get(rawURL)
 	if err != nil {
-		return nil, fmt.Errorf("fetching Hebcal: %w", err)
+		return nil, false, fmt.Errorf("downloading from hebcal.com: %w", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("Hebcal returned HTTP %d", resp.StatusCode)
+		return nil, false, fmt.Errorf("hebcal.com returned HTTP %d", resp.StatusCode)
 	}
-	return io.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, false, err
+	}
+	if setErr := c.httpCache.Set(rawURL, body); setErr != nil {
+		fmt.Printf("Warning: could not cache Hebcal response: %v\n", setErr)
+	}
+	return body, false, nil
 }
 
 // ---- JSON response shapes ----
@@ -135,16 +227,15 @@ type apiLocation struct {
 }
 
 type apiItem struct {
-	Title    string `json:"title"`
-	Date     string `json:"date"`
-	Category string `json:"category"`
-	Subcat   string `json:"subcat,omitempty"`
-	Hebrew   string `json:"hebrew,omitempty"`
-	Memo     string `json:"memo,omitempty"`
-	Link     string `json:"link,omitempty"`
-	HDate    string `json:"hdate,omitempty"`
-	// Leyning mixes string aliyah keys with non-string values; decoded raw.
-	Leyning map[string]json.RawMessage `json:"leyning,omitempty"`
+	Title    string                     `json:"title"`
+	Date     string                     `json:"date"`
+	Category string                     `json:"category"`
+	Subcat   string                     `json:"subcat,omitempty"`
+	Hebrew   string                     `json:"hebrew,omitempty"`
+	Memo     string                     `json:"memo,omitempty"`
+	Link     string                     `json:"link,omitempty"`
+	HDate    string                     `json:"hdate,omitempty"`
+	Leyning  map[string]json.RawMessage `json:"leyning,omitempty"`
 }
 
 func normalizeLocation(loc apiLocation, cfg types.Config) types.Location {
@@ -163,18 +254,12 @@ func normalizeLocation(loc apiLocation, cfg types.Config) types.Location {
 	if city == "" {
 		city = loc.City
 	}
-	// For lat/lon mode, Hebcal may not return a city name; fall back to --name.
 	if city == "" {
 		city = cfg.Name
 	}
 	return types.Location{
-		ZIP:       zip,
-		TZID:      tzid,
-		Latitude:  loc.Latitude,
-		Longitude: loc.Longitude,
-		City:      city,
-		Country:   loc.Country,
-		Name:      cfg.Name,
+		ZIP: zip, TZID: tzid, Latitude: loc.Latitude, Longitude: loc.Longitude,
+		City: city, Country: loc.Country, Name: cfg.Name,
 	}
 }
 
