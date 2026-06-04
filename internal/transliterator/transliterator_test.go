@@ -7,14 +7,9 @@ import (
 )
 
 func applyToOne(title, desc, memo string, stripNikud bool) types.HebcalEvent {
-	ev := types.HebcalEvent{Title: title, Description: desc, Memo: memo}
-	Apply([]types.HebcalEvent{ev}, stripNikud)
-	return ev // Apply mutates in-place via slice
-}
-
-func applyTo(events []types.HebcalEvent, stripNikud bool) []types.HebcalEvent {
-	Apply(events, stripNikud)
-	return events
+	evs := []types.HebcalEvent{{Title: title, Description: desc, Memo: memo}}
+	Apply(evs, stripNikud)
+	return evs[0] // Apply mutates the slice element, not the passed value
 }
 
 func TestApply_AllScope(t *testing.T) {
@@ -31,24 +26,23 @@ func TestApply_AllScope(t *testing.T) {
 		{"title", "Sukkot", "Succos"},
 	}
 	for _, tt := range tests {
-		var ev types.HebcalEvent
+		var out types.HebcalEvent
 		switch tt.field {
 		case "title":
-			ev = types.HebcalEvent{Title: tt.in}
+			out = applyToOne(tt.in, "", "", false)
 		case "desc":
-			ev = types.HebcalEvent{Description: tt.in}
+			out = applyToOne("", tt.in, "", false)
 		case "memo":
-			ev = types.HebcalEvent{Memo: tt.in}
+			out = applyToOne("", "", tt.in, false)
 		}
-		Apply([]types.HebcalEvent{ev}, false)
 		var got string
 		switch tt.field {
 		case "title":
-			got = ev.Title
+			got = out.Title
 		case "desc":
-			got = ev.Description
+			got = out.Description
 		case "memo":
-			got = ev.Memo
+			got = out.Memo
 		}
 		if got != tt.want {
 			t.Errorf("Apply %s(%q) = %q, want %q", tt.field, tt.in, got, tt.want)
