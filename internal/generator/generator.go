@@ -24,9 +24,24 @@ import (
 	"github.com/toobuntu/zman-didan/internal/types"
 )
 
+// httpCacheTTL is the TTL for the HTTP response cache. The Hebcal and chabad.org
+// responses are stable for a given set of request parameters, so 7 days is
+// conservative. --refresh is the explicit override.
+const httpCacheTTL = 7 * 24 * time.Hour
+
+// useAshkenazi reports whether the lang mode requires Ashkenazi substitutions.
 func useAshkenazi(lang string) bool {
 	switch lang {
-	case "a", "ah", "ah-x-NoNikud":
+	case "a", "ah", "ahn":
+		return true
+	}
+	return false
+}
+
+// stripNikudForLang reports whether nikud should be stripped client-side.
+func stripNikudForLang(lang string) bool {
+	switch lang {
+	case "hn", "ahn", "shn":
 		return true
 	}
 	return false
@@ -41,32 +56,35 @@ func Run(cfg types.Config) error {
 		}
 	}
 
-	// 1. Hebcal.
-	if cfg.UsingDateRange() {
-		fmt.Printf("Fetching Hebcal calendar %s → %s...\n",
-			cfg.StartDate.Format("2006-01-02"), cfg.EndDate.Format("2006-01-02"))
-	} else {
-		fmt.Printf("Fetching Hebcal calendar for Hebrew year %d...\n", cfg.Year)
-	}
+	httpCache := cache.NewHTTP(httpCacheTTL)
+
+	// 1. Hebcal calendar.
 	hc := hebcal.NewClient()
-	events, loc, err := hc.FetchYear(cfg)
+	events, loc, calFromCache, err := hc.FetchYear(cfg)
 	if err != nil {
-		return fmt.Errorf("Hebcal fetch: %w", err)
+		return fmt.Errorf("Hebcal: %w", err)
 	}
-	fmt.Printf("  %d events — %s (%s)\n", len(events), loc.City, loc.TZID)
+	if cfg.UsingDateRange() {
+		fmt.Printf("[%s] %d events %s → %s — %s (%s)\n",
+			hostTag(calFromCache, "hebcal.com"),
+			len(events),
+			cfg.StartDate.Format("2006-01-02"),
+			cfg.EndDate.Format("2006-01-02"),
+			loc.City, loc.TZID)
+	} else {
+		fmt.Printf("[%s] %d events Hebrew year %d — %s (%s)\n",
+			hostTag(calFromCache, "hebcal.com"),
+			len(events), cfg.Year, loc.City, loc.TZID)
+	}
 
 	for i := range events {
 		if events[i].Description == "" {
 			events[i].Description = events[i].Memo
 		}
 	}
-
-	// Drop timed fast-begin/end events from Hebcal (c=on). fastday.Build
-	// synthesises replacements with Chabad-authoritative zmanim and alarms.
 	events = dropTimedHebcalFastEvents(events)
 
-	// 2. Chabad candle lighting + havdalah (always fetched; not cached).
-	fmt.Println("Fetching candle lighting from chabad.org...")
+	// 2. Chabad candle lighting + havdalah.
 	zmCache := cache.New()
 	if !cfg.Refresh {
 		if err := zmCache.Prune(); err != nil {
@@ -75,17 +93,18 @@ func Run(cfg types.Config) error {
 	}
 	cc := chabad.NewClient(zmCache)
 	tdate := candleStartDate(events, loc)
-	candleTimes, err := cc.FetchCandlesYear(tdate, loc, cfg)
+	candleTimes, candleFromCache, err := cc.FetchCandlesYear(tdate, loc, cfg)
 	if err != nil {
 		return fmt.Errorf("Chabad candle ICS: %w", err)
 	}
-	fmt.Printf("  %d candle/havdalah entries\n", len(candleTimes))
+	fmt.Printf("[%s] %d candle/havdalah entries\n",
+		hostTag(candleFromCache, "chabad.org"), len(candleTimes))
 
-	// 3. Zmanim per relevant date (disk-cached).
+	// 3. Zmanim per relevant date (per-date cache).
 	zmanimDates := collectZmanimDates(events, loc.TZID)
 	total := len(zmanimDates)
 	zmanimMap := make(map[string]types.ZmanimDay, total)
-	var nCached, nFetched int
+	var nCached, nDownloaded int
 	for _, d := range zmanimDates {
 		z, fromCache, err := cc.FetchZmanimInZone(d, loc, cfg)
 		if err != nil {
@@ -96,16 +115,16 @@ func Run(cfg types.Config) error {
 		if fromCache {
 			nCached++
 		} else {
-			nFetched++
+			nDownloaded++
 		}
 	}
 	switch {
-	case nFetched > 0 && nCached > 0:
-		fmt.Printf("  %d zmanim (%d from chabad.org, %d from cache)\n", total, nFetched, nCached)
-	case nFetched > 0:
-		fmt.Printf("  Fetched %d zmanim from chabad.org\n", nFetched)
+	case nDownloaded > 0 && nCached > 0:
+		fmt.Printf("[chabad.org+cache] %d zmanim (%d downloaded, %d cached)\n", total, nDownloaded, nCached)
+	case nDownloaded > 0:
+		fmt.Printf("[chabad.org] %d zmanim\n", nDownloaded)
 	default:
-		fmt.Printf("  %d zmanim (all from cache)\n", nCached)
+		fmt.Printf("[cache] %d zmanim\n", nCached)
 	}
 
 	// 4–12. Pipeline stages.
@@ -118,24 +137,21 @@ func Run(cfg types.Config) error {
 		fmt.Printf("Warning: haftorah patch: %v\n", err)
 	}
 
-	stripNikud := cfg.Lang == "ah-x-NoNikud"
+	stripNikud := stripNikudForLang(cfg.Lang)
 	if useAshkenazi(cfg.Lang) {
 		transliterator.Apply(events, stripNikud)
 	}
 
 	cleaner.Clean(events)
 
-	// Special dates: always fetched; filtered to calendar date range.
-	// calendarDateRange uses midnight boundaries so that all-day events
-	// at midnight are not excluded by timed events on the same start date.
-	fmt.Println("Fetching Chabad special dates from Hebcal...")
 	rangeStart, rangeEnd := calendarDateRange(events, loc.TZID)
-	special, err := specialdates.Merge(loc.TZID, stripNikud, useAshkenazi(cfg.Lang), rangeStart, rangeEnd)
+	special, sdFromCache, err := specialdates.Merge(loc.TZID, stripNikud, useAshkenazi(cfg.Lang), rangeStart, rangeEnd, httpCache, cfg.Refresh)
 	if err != nil {
 		fmt.Printf("Warning: special dates: %v\n", err)
 	} else {
 		events = append(events, special...)
-		fmt.Printf("  %d Yomei d'Pagra events merged\n", len(special))
+		fmt.Printf("[%s] %d Yomei d'Pagra events\n",
+			hostTag(sdFromCache, "hebcal.com"), len(special))
 	}
 
 	sort.Slice(events, func(i, j int) bool {
@@ -153,6 +169,14 @@ func Run(cfg types.Config) error {
 	}
 	fmt.Printf("Written: %s\n", outPath)
 	return nil
+}
+
+// hostTag returns the source host or "cache" for a progress line tag.
+func hostTag(fromCache bool, host string) string {
+	if fromCache {
+		return "cache"
+	}
+	return host
 }
 
 // dropTimedHebcalFastEvents removes timed fast-begin/end events from Hebcal.
