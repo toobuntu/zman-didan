@@ -1,3 +1,9 @@
+/*
+ * SPDX-FileCopyrightText: Copyright 2026 Todd Schulman
+ *
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
 // Package fastday synthesises standalone begin and end VEVENT entries for
 // fast days. The existing all-day holiday event is left in place.
 //

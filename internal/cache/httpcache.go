@@ -1,3 +1,9 @@
+/*
+ * SPDX-FileCopyrightText: Copyright 2026 Todd Schulman
+ *
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
 // Package cache implements persistent caches for didan's external data sources.
 //
 // # HTTPCache

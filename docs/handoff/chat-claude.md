@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: Copyright 2026 Todd Schulman
+
+SPDX-License-Identifier: GPL-3.0-or-later
+-->
+
 You are taking over development of `zman-didan` (module: github.com/toobuntu/zman-didan),
 a Go CLI tool that generates Chabad-minhag iCalendar (.ics) files. The project is at
 /Users/todd/devel/claude/desktop/didan/. Start by reading CLAUDE.md in full, then

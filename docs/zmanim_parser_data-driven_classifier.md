@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: Copyright 2026 Todd Schulman
+
+SPDX-License-Identifier: GPL-3.0-or-later
+-->
+
 This is exactly the kind of messy-but-structured data where a small, data-driven classifier pays off. Not for abstraction’s sake—but because you’ve now seen enough variants that hard-coding logic will keep growing in awkward ways.
 
 Let me propose something that stays simple but handles everything you’ve shown, including:

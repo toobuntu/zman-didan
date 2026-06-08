@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: Copyright 2026 Todd Schulman
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 .PHONY: build install dev test integration check fmt style scan vale actionlint reuse tidy hooks clean
 
 BINARY := bin/didan

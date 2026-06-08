@@ -1,3 +1,9 @@
+/*
+ * SPDX-FileCopyrightText: Copyright 2026 Todd Schulman
+ *
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
 // Package cleaner normalises event descriptions by removing Hebcal-specific
 // boilerplate, redundant subtitles, and JPS attribution lines.
 package cleaner

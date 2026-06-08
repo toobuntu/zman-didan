@@ -1,3 +1,9 @@
+/*
+ * SPDX-FileCopyrightText: Copyright 2026 Todd Schulman
+ *
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
 // Package haftorah replaces Hebcal haftorah assignments with Chabad-authoritative
 // readings.
 //

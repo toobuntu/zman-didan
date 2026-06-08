@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: Copyright 2026 Todd Schulman
+
+SPDX-License-Identifier: GPL-3.0-or-later
+-->
+
 # Technical Debt
 
 Prioritized debt register for `zman-didan`. Each item has a problem statement,

@@ -1,5 +1,11 @@
 //go:build integration
 
+/*
+ * SPDX-FileCopyrightText: Copyright 2026 Todd Schulman
+ *
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
 // Package integration contains tests that make real network requests.
 // They are excluded from normal `go test ./...` runs by the `integration`
 // build tag. Run with:

@@ -1,3 +1,9 @@
+/*
+ * SPDX-FileCopyrightText: Copyright 2026 Todd Schulman
+ *
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
 // Package alarm strips existing alarms from all events and rebuilds them
 // according to the didan alarm policy.
 package alarm
