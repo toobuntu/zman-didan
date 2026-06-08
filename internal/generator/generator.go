@@ -62,7 +62,7 @@ func Run(cfg types.Config) error {
 	hc := hebcal.NewClient()
 	events, loc, calFromCache, err := hc.FetchYear(cfg)
 	if err != nil {
-		return fmt.Errorf("Hebcal: %w", err)
+		return fmt.Errorf("fetching Hebcal calendar: %w", err)
 	}
 	if cfg.UsingDateRange() {
 		fmt.Printf("[%s] %d events %s → %s — %s (%s)\n",
@@ -95,7 +95,7 @@ func Run(cfg types.Config) error {
 	tdate := candleStartDate(events, loc)
 	candleTimes, candleFromCache, err := cc.FetchCandlesYear(tdate, loc, cfg)
 	if err != nil {
-		return fmt.Errorf("Chabad candle ICS: %w", err)
+		return fmt.Errorf("fetching Chabad candle ICS: %w", err)
 	}
 	fmt.Printf("[%s] %d candle/havdalah entries\n",
 		hostTag(candleFromCache, "chabad.org"), len(candleTimes))
