@@ -23,7 +23,7 @@ jobs:
 
       - name: Format
         run: |
-          unformatted=$(gofmt -l ./...)
+          unformatted=$(gofmt -l .)
           if [ -n "$unformatted" ]; then
             echo "Unformatted files:"
             printf '%s\n' "$unformatted"
