@@ -196,6 +196,40 @@ func TestChabadZmanim_ShaahZmanitNonZero(t *testing.T) {
 	}
 }
 
+func TestChabadZmanim_ShabbosAndYomTovVariants(t *testing.T) {
+	// Regression guard for the Shabbos/Yom-Tov Misheyakir label variant. On
+	// these days the RSS uses "Earliest Tallit (Misheyakir)" (no "and Tefillin")
+	// and "Shabbat Ends"/"Holiday Ends" rather than plain Nightfall. An exact
+	// label map dropped both, zeroing Misheyakir and Tzeis on every Shabbos and
+	// Yom Tov (collapsing the Havdala "Shma" range to its end time); substring
+	// classification must populate them.
+	c := chabad.NewClient(cache.New())
+	tests := []struct {
+		name       string
+		date       time.Time
+		checkTzeis bool
+	}{
+		{"Shabbos", time.Date(2026, 3, 21, 0, 0, 0, 0, time.UTC), true}, // Saturday
+		{"YomTov", time.Date(2026, 5, 22, 0, 0, 0, 0, time.UTC), false}, // Shavuos I
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			z, _, err := c.FetchZmanimInZone(tt.date, testLoc, testCfg())
+			if err != nil {
+				t.Fatalf("FetchZmanimInZone: %v", err)
+			}
+			if z.Misheyakir.IsZero() {
+				t.Errorf("%s %s: Misheyakir is zero — the Shabbos/YT label variant was not classified",
+					tt.name, tt.date.Format("2006-01-02"))
+			}
+			if tt.checkTzeis && z.Tzeis.IsZero() {
+				t.Errorf("%s %s: Tzeis is zero — \"Shabbat Ends\" was not classified",
+					tt.name, tt.date.Format("2006-01-02"))
+			}
+		})
+	}
+}
+
 // ---- Chabad candle ICS ----
 
 func TestChabadCandleICS_Types(t *testing.T) {
