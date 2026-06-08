@@ -2,7 +2,7 @@
 
 System design and external-data contracts for `zman-didan`. For build/test
 commands, CLI flags, make targets, language modes, and "where mappings live,"
-see [`CLAUDE.md`](CLAUDE.md) — that file is the operational reference and is
+see [`CLAUDE.md`](../CLAUDE.md) — that file is the operational reference and is
 kept current; this file documents how the pipeline fits together and the
 non-obvious quirks of the upstream data sources. Where the two would duplicate
 a table, the canonical copy lives in `CLAUDE.md`.
@@ -61,7 +61,7 @@ a table, the canonical copy lives in `CLAUDE.md`.
                          ▼
 ┌─────────────────────────────────────────────────────────────┐
 │  internal/fastday Build() → internal/alarm Rebuild()        │
-│  synthesise fast begin/end events; repopulate VALARM blocks │
+│  synthesize fast begin/end events; repopulate VALARM blocks │
 └────────────────────────┬────────────────────────────────────┘
                          │
                          ▼
@@ -97,10 +97,10 @@ a table, the canonical copy lives in `CLAUDE.md`.
 ## Key data structures
 
 ### types.HebcalEvent
-Normalised from Hebcal JSON, mutable throughout the pipeline. `AllDay bool`
+Normalized from Hebcal JSON, mutable throughout the pipeline. `AllDay bool`
 distinguishes date-only events (`DTSTART;VALUE=DATE`) from timed ones. `Slug`
 is extracted from the Hebcal link URL for haftorah-table lookup. `Alarms` is
-populated by the alarm package and serialised by icalwriter. `Leyning` carries
+populated by the alarm package and serialized by icalwriter. `Leyning` carries
 `Haftarah` and `HaftarahChabad` (see Haftorah source priority).
 
 ### types.ZmanimDay
@@ -115,14 +115,14 @@ detects the AM hour for that field and constructs the value on D+1.
 `Misheyakir`'s RSS label differs by day type, which the parser must tolerate:
 weekday `"Earliest Tallit and Tefillin (Misheyakir)"` vs Shabbos/Yom-Tov
 `"Earliest Tallit (Misheyakir)"` (tallis worn, tefillin not). Likewise the
-nightfall that ends Shabbos/YT is labelled `"Shabbat Ends"`/`"Holiday Ends"`
+nightfall that ends Shabbos/YT is labeled `"Shabbat Ends"`/`"Holiday Ends"`
 rather than `"Nightfall (Tzeit Hakochavim)"`. Substring classification (below)
 handles both; an exact-string map historically dropped the Shabbos/YT variants,
 zeroing `Misheyakir` and `Tzeis` on every Shabbos and Yom Tov.
 
 ### cache.ZmanimCache
 JSON file at `~/.cache/didan/zmanim.json`, an envelope `{version, entries}` with
-map keys `"YYYY-MM-DD|locationID"`; `time.Time` serialised as RFC3339. The file
+map keys `"YYYY-MM-DD|locationID"`; `time.Time` serialized as RFC3339. The file
 carries `zmanimCacheVersion`; a version mismatch on load discards the whole
 cache and forces a clean re-fetch (bump it whenever parser logic or the field
 set changes — e.g. the Misheyakir variant fix). Zmanim are deterministic per
@@ -144,7 +144,7 @@ ICS. `--refresh` bypasses all caches.
 | Havdalah | `Category == "havdalah"` |
 | Fast days | `Subcat == "fast"` |
 | Tisha B'Av / Yom Kippur | above + title contains "Tisha B'Av" / "Yom Kippur" |
-| Pesach seder night | `Category == "holiday"`, `HDate` contains "15 Nisan" |
+| Pesach seder nights | candle event whose date has an "Erev Pesach" co-event (1st seder) or an "after" candle on a "Pesach I" date (2nd) — see `isSederNight` |
 | Chanuka | `Category == "holiday"`, title contains "chanuk" (case-insensitive) |
 
 ## Chabad RSS
@@ -158,7 +158,7 @@ URL: `https://www.chabad.org/tools/rss/zmanim.xml?locationId=ZIP&locationType=2&
 ### RSS title → ZmanimDay field mapping
 
 Classification is **substring**, not exact-string, matching: each `<item>`
-title's label is normalised, split, then tested against `classifierRules`
+title's label is normalized, split, then tested against `classifierRules`
 (`internal/chabad/client.go`) **in order, first match wins**. Substring matching
 is deliberate — it absorbs the weekday/Shabbos/YT label variants that an
 exact-string map cannot. A rule may set a canonical field, mark the token as an
@@ -182,7 +182,7 @@ exact-string map cannot. A rule may set a canonical field, mark the token as an
 
 `normalizeLabel` repairs a known feed defect where two labels run together
 without a delimiter (`"Sunset (Shkiah)Fast Begins"` → `"… | Fast Begins"`).
-Unrecognised labels are preserved as `Events`. Items such as `Latest Shacharit`
+Unrecognized labels are preserved as `Events`. Items such as `Latest Shacharit`
 and the Mincha times are parsed and discarded.
 
 ## Chabad Candle Lighting ICS
