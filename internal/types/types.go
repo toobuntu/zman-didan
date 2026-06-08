@@ -10,7 +10,7 @@ import (
 // Location holds the user's geographic context resolved from the Hebcal API.
 type Location struct {
 	ZIP       string
-	TZID      string  // IANA timezone identifier, e.g. "America/New_York"
+	TZID      string // IANA timezone identifier, e.g. "America/New_York"
 	Latitude  float64
 	Longitude float64
 	City      string
@@ -52,11 +52,11 @@ type HebcalEvent struct {
 // it takes precedence over the embedded haftorah_chabad.json table. The field
 // is empty until deployment; haftorah.Patch falls back to the embedded table.
 type Leyning struct {
-	Torah         string
-	Haftarah      string
+	Torah          string
+	Haftarah       string
 	HaftarahChabad string // from Hebcal API haftarah_chabad field; preferred when non-empty
-	Maftir        string
-	Aliyot        map[string]string
+	Maftir         string
+	Aliyot         map[string]string
 }
 
 // ZmanimDay holds halachic times for a single date from chabad.org RSS.
@@ -113,8 +113,8 @@ type Config struct {
 	EndDate   time.Time
 
 	Lang      string
-	Candles   int  // minutes before shkiah for candle lighting (default 25)
-	Tosfos    int  // minutes added to havdala for tosfos Shabbos (default 4)
+	Candles   int // minutes before shkiah for candle lighting (default 25)
+	Tosfos    int // minutes added to havdala for tosfos Shabbos (default 4)
 	Output    string
 	Refresh   bool // bypass all caches
 	Emojis    bool // prefix SUMMARY with Hebcal-style emoji (default true)

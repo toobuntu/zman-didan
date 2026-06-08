@@ -92,8 +92,8 @@ func isEmoji(s string) bool {
 
 func beginEvent(name string, t time.Time, locationID string) types.HebcalEvent {
 	return types.HebcalEvent{
-		Date:  t,
-		AllDay: false,
+		Date:     t,
+		AllDay:   false,
 		Category: "fast-begin",
 		// Generic SUMMARY; fast name in Description provides context without
 		// cluttering the calendar title.
@@ -110,13 +110,13 @@ func beginEvent(name string, t time.Time, locationID string) types.HebcalEvent {
 
 func endEvent(name string, t time.Time, locationID string) types.HebcalEvent {
 	return types.HebcalEvent{
-		Date:     t,
-		AllDay:   false,
-		Category: "fast-end",
-		Title:    "Fast ends",
-		Hebrew:   "סיום הצום",
+		Date:        t,
+		AllDay:      false,
+		Category:    "fast-end",
+		Title:       "Fast ends",
+		Hebrew:      "סיום הצום",
 		Description: name,
-		UID:      fmt.Sprintf("didan-%s-fast-end-%s", t.Format("2006-01-02"), locationID),
+		UID:         fmt.Sprintf("didan-%s-fast-end-%s", t.Format("2006-01-02"), locationID),
 		Alarms: []types.Alarm{
 			{TriggerMinutes: -15, Description: "Event reminder"},
 			{TriggerMinutes: 0, Description: "Event reminder"},

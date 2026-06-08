@@ -61,8 +61,8 @@ import (
 )
 
 const (
-	zmanimRSSURL  = "https://www.chabad.org/tools/rss/zmanim.xml"
-	candleICSURL  = "https://www.chabad.org/calendar/candlelighting/candlelighting.ics.asp"
+	zmanimRSSURL   = "https://www.chabad.org/tools/rss/zmanim.xml"
+	candleICSURL   = "https://www.chabad.org/calendar/candlelighting/candlelighting.ics.asp"
 	candleCacheTTL = 24 * time.Hour
 
 	userAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"

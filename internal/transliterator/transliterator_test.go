@@ -54,9 +54,9 @@ func TestApply_TitleOnlyScope(t *testing.T) {
 	// Biblical book names: replaced in Title and Memo, NOT in Description.
 	events := []types.HebcalEvent{
 		{
-			Title:       "Parshas Shemos",          // book name in title → replaced
+			Title:       "Parshas Shemos",                     // book name in title → replaced
 			Description: "commemorates the Exodus from Egypt", // prose → NOT replaced
-			Memo:        "Reading: Exodus 1:1",      // book name in memo → replaced
+			Memo:        "Reading: Exodus 1:1",                // book name in memo → replaced
 		},
 	}
 	Apply(events, false)
