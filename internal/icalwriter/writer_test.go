@@ -2,15 +2,11 @@ package icalwriter
 
 import (
 	"testing"
-	"time"
 
 	"github.com/toobuntu/zman-didan/internal/types"
 )
 
 func TestBuildSummary(t *testing.T) {
-	loc, _ := time.LoadLocation("America/New_York")
-	t0 := time.Date(2026, 3, 20, 18, 52, 0, 0, loc)
-
 	tests := []struct {
 		ev     types.HebcalEvent
 		lang   string
@@ -54,7 +50,6 @@ func TestBuildSummary(t *testing.T) {
 			want: "Shabbos",
 		},
 	}
-	_ = t0
 	for _, tt := range tests {
 		got := buildSummary(tt.ev, tt.lang, tt.emojis)
 		if got != tt.want {
