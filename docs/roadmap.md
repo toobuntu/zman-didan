@@ -2,10 +2,9 @@
 
 Status legend: **done** · **in progress** · **planned**
 
-This roadmap is forward-looking. For the catalogue of existing debt with
+This roadmap is forward-looking. For the catalog of existing debt with
 acceptance criteria, see [`technical-debt.md`](technical-debt.md). For the
-system overview, see [`../ARCHITECTURE.md`](../ARCHITECTURE.md) (note: that
-document currently has drift flagged in the debt list).
+system overview, see [`architecture.md`](architecture.md).
 
 ## 1. Build and version provenance — planned (high priority)
 
@@ -45,10 +44,9 @@ Shabbos variant `"Earliest Tallit (Misheyakir)"` and `"Holiday Ends"` → tzeis.
 - **done:** restored the rationale comments stripped from `chabad/client.go`
   and `types.go` (RSS label variants, the `)Word` defect, the event-flag
   semantics, the RSS item grammar, the Erev-YK candle edge case).
-- **planned:** correct `ARCHITECTURE.md` — its RSS title→field table documents
-  the pre-789265a exact-match map and would reintroduce the bug if trusted;
-  the module path, `map[time.Time]CandleDay`, prune-on-every-write description,
-  and `lg=` codes are also stale, and the caching layer is undocumented.
+- **done:** corrected `ARCHITECTURE.md` (RSS substring classifier + label
+  variants, module path, `map[string]CandleDay`, cache versioning/retention,
+  `lg=` codes, caching layer) and relocated it to `docs/architecture.md`.
 
 ## 5. Haftorah verification and fallback removal — planned
 
@@ -92,3 +90,40 @@ populate it with end-to-end fixtures.
 `make check` currently fails on missing `staticcheck` and `govulncheck`.
 Document/pin the install (or make the targets skip gracefully when absent).
 See the debt list for acceptance criteria.
+
+## 11. Correlate Hebcal Baal HaTanya zmanim — planned
+
+Hebcal is adding Alter Rebbe (Baal HaTanya) zmanim
+([request](https://hebcal.userecho.com/communities/1/topics/1552-please-add-zmanim-according-to-the-baal-hatanya),
+[hebcal-es6 commit](https://github.com/hebcal/hebcal-es6/commit/8b4e93d83a887a979df1d492f1f98494be45433e),
+[issue #679](https://github.com/hebcal/hebcal-es6/issues/679)). chabad.org stays
+authoritative, but to de-risk a future migration: fetch Hebcal's Baal HaTanya
+zmanim alongside chabad.org's, cache them, and emit an internal per-zman offset
+report (chabad.org − Hebcal) to quantify drift. A debug flag
+(e.g. `--zmanim-offset-report`) writes the diff table; it is not part of normal
+output. Parity is not yet 1:1, so this is correlation-only for now.
+
+## 12. Self-owned Yomei d'Pagra via the Yahrzeit API — planned (high priority)
+
+Today's special dates come from Hebcal's pre-built `chabad-special-dates.ics`,
+whose SUMMARY strings drifted (e.g. "R. Menachem M. Schneerson", not
+"...Menachem Mendel..."), breaking `rebbes.json` verbose-name matching and
+dropping rebbe events (technical-debt P1-6). Replace the dependency on the
+pre-built feed with our own curated list:
+
+- Maintain `yomei_dpagra.json` as the source of truth: per event, the Hebrew
+  date (day + month), base Hebrew year (for the "Nth" count), type
+  (Birthday/Passing/Anniversary), and our own DESCRIPTION text + emoji.
+- Resolve Gregorian dates via the Yahrzeit + Anniversary API
+  (`POST https://www.hebcal.com/yahrzeit`, `cfg=json&v=yahrzeit`,
+  `n#/t#/hd#/hm#/hy#`, `hebdate=on`, `years=N`); the response yields `date`,
+  `hdate`, and `anniversary` (the Nth count) per occurrence.
+- Replace the API `.memo` with our text; add VALARMs one day before and on the
+  day of each yoma d'pagra.
+- Respect feed limits (Yahrzeit/Anniversary feeds cap at 1,200 events; at ~23
+  events/year that bounds a *subscription* feed to ~52 years). didan generates
+  per-run for a bounded span, so the cap does not bind one-shot output; note it
+  for any future subscription endpoint.
+
+This removes the name-drift failure mode entirely and gives full control over
+wording, emoji, and alarms.

@@ -31,7 +31,12 @@ that ambiguity (a March-21 binary plus pre-789265a cache entries).
 
 ---
 
-## P0-2 · `ARCHITECTURE.md` documents the pre-fix exact-match map
+## P0-2 · `ARCHITECTURE.md` documents the pre-fix exact-match map — resolved
+
+**Resolved.** Rewritten to document substring classification with both
+Misheyakir label variants and the `Shabbat Ends → Tzeis` rule, plus the correct
+module path, `map[string]CandleDay`, cache versioning/retention, `lg=` codes,
+and the caching layer; relocated to `docs/architecture.md`.
 
 **Problem.** The "RSS title → ZmanimDay field mapping" table lists only the
 exact weekday strings (e.g. `Earliest Tallit and Tefillin (Misheyakir)`) and
@@ -151,6 +156,60 @@ and returns silently for any other zone, producing calendars without a
 - Tests cover at least one non-US zone and a southern-hemisphere DST case.
 
 **Files.** `internal/icalwriter/writer.go`, `internal/icalwriter/writer_test.go`.
+
+---
+
+## P1-6 · Integration tests failing on upstream drift
+
+**Problem.** Three live-data integration tests fail against current
+hebcal.com / chabad.org responses:
+
+- `TestHebcalFetchYear_ParashaHasSlug` — parashat events have an empty `Slug`;
+  Hebcal returns no `link` field for parashat items (confirmed: `jq` over the
+  live response yields nothing), so `extractSlug` has nothing to extract. Low
+  impact — haftorah now prefers the API `haftarah_chabad` field, which needs no
+  slug.
+- `TestHebcalFetchYear_AshkenaziNikud` — no nikud in `ev.Hebrew` for `lang=ah`.
+  `enrichHebrew` replaces Hebrew by **slice index**, assuming the `lg=ah` and
+  `lg=he` responses share ordering and count; when they diverge, alignment
+  breaks.
+- `TestSpecialDatesICS_VerboseNames` — the feed renamed the Rebbe to
+  "R. Menachem M. Schneerson" (confirmed via `X-WR-CALDESC`), so `rebbes.json`
+  verbose-name matching fails and the rebbe Yomei d'Pagra events go missing
+  from generated calendars. **Superseded** by the self-owned Yomei d'Pagra
+  redesign (roadmap §12).
+
+**Acceptance criteria.**
+- Slug: re-derive from an available field, or relax the test to "`Slug` OR
+  `HaftarahChabad` present."
+- Nikud: key `enrichHebrew` on a stable field (date + category), not index; a
+  test asserts alignment survives a differing item set.
+- Special dates: resolved by roadmap §12 (interim: update `rebbes.json`
+  verbose_names to the current feed strings).
+
+**Files.** `internal/hebcal/client.go`,
+`internal/integration/integration_test.go`,
+`internal/embeddata/files/rebbes.json`, `internal/specialdates/merge.go`.
+
+---
+
+## P1-7 · HTTP cache filenames are opaque hashes
+
+**Problem.** Entries under `~/.cache/didan/http/` are named `<sha256(url)>` with
+no indication of source or contents, which has repeatedly slowed cache debugging
+(stale zmanim, poisoned cache, drifted special dates — each required grepping
+every file to find the relevant one).
+
+**Acceptance criteria.** Prefix each cache filename with a short source label so
+files are self-identifying while staying unique, e.g. `http/hebcal-<sha256>`,
+`http/candle-<sha256>`, `http/specialdates-<sha256>`, and
+`http/yomadpagra-<sha256>` for the new package. Pass an explicit label argument
+to the `HTTPCache` get/set API (do not infer it from the URL host). A label
+slug must be filename-safe (lowercase, `[a-z0-9-]`). Old hash-only files are
+harmlessly re-fetched once.
+
+**Files.** `internal/cache/httpcache.go` and its callers in `internal/hebcal`,
+`internal/chabad`, `internal/specialdates` (and future `internal/yomadpagra`).
 
 ---
 
