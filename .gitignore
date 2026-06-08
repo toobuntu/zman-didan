@@ -1,9 +1,8 @@
 # Build output
 bin/
-didan
-didan-linux
-didan-windows.exe
-!cmd/didan/
+/didan
+/didan-linux
+/didan-windows.exe
 
 # Generated calendar files (keep testdata)
 *.ics
