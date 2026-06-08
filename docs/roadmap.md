@@ -127,3 +127,45 @@ pre-built feed with our own curated list:
 
 This removes the name-drift failure mode entirely and gives full control over
 wording, emoji, and alarms.
+
+## 13. Evaluate the chabad-org-zmanim JSON web service — planned
+
+`toolsforshlichus/chabad-org-zmanim` (a zero-dependency TypeScript client,
+cloned for study) fetches chabad.org zmanim from a **different, richer endpoint
+than didan's RSS**: `https://www.chabad.org/webservices/zmanim/zmanim/Get_Zmanim`
+returns JSON, not an RSS feed.
+
+Why it matters:
+
+- **Typed `ZmanType` enum, no label parsing.** Each time carries a stable
+  `ZmanType` (AlosHashachar, EarliestTefillin, NetzHachamah, LatestShema,
+  LatestTefillah, LastEatingChametzTime, BurnChametzTime, Chatzos,
+  MinchahGedolah, MinchahKetanah, PlagHaminchah, CandleLighting, Shkiah, Tzeis,
+  ShabbosEnds, ChatzosNight, ShaahZmanit). This sidesteps the brittle RSS
+  substring classifier behind the Shabbos/Yom-Tov Misheyakir regression — the
+  single strongest argument for switching.
+- **Date ranges in one request.** `startdate`/`enddate` (M/D/YYYY) fetch a span;
+  didan currently issues one RSS request per date (~380 for a Hebrew year).
+- **Variants resolved natively.** A `Default` boolean marks the canonical time
+  when several variants exist, and `Footnotes` (keyed by `FootnoteType`) carry
+  context didan now infers from label strings.
+- **Access recipe.** `locationid` + `locationtype` (1 = Chabad city ID,
+  2 = ZIP), `tdate` (M-D-YYYY), `aid` (affiliate, default 143790); headers
+  include `x-user-agent: … co_ajax/2.0`, `sec-ch-ua`, and a `referer` to
+  `/calendar/zmanim_cdo/...`. Times arrive as ASP.NET `"/Date(ms)/"` strings.
+
+Tiers (decision pending — adopt, port ideas, or mine for data):
+
+- **Mine now (no rewrite):** record the `ZmanType` enum, the param/header
+  recipe, and the `Default`-flag + `Footnotes` semantics in `architecture.md`;
+  note the ASP.NET date and HTML-entity handling.
+- **Evaluate:** reimplement `internal/chabad` in Go against `Get_Zmanim`
+  (range-capable, typed), retiring the RSS substring classifier. Prototype one
+  known date and diff against the current RSS path before committing.
+- **Avoid:** a runtime dependency on the TypeScript library — didan is pure Go.
+  Reimplement from observed behavior; check the repo's LICENSE before copying
+  any code, though API parameters and field names are facts, not expression.
+
+Caveats: the endpoint is internal/undocumented (same status as didan's
+`--lat/--lon` params) with no stability contract, and chabad.org's RSS terms
+(contact before distribution) apply equally.
