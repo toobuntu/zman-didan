@@ -15,7 +15,8 @@ times, and (optionally) Ashkenazi transliterations.
   window (misheyakir–latest shema) for havdalah, chatzos halaila for the Pesach
   seder, chatzos hayom for Tisha B'Av, and menora-lighting windows for Chanuka.
 - Synthesises timed fast begin/end events with alarms.
-- Prefers the Hebcal API's Chabad haftarah, falling back to an embedded table.
+- Prefers the Chabad haftarah from the Hebcal API, falling back to an embedded
+  table.
 - Merges Chabad Yomei d'Pagra with reformatted descriptions.
 - Optionally applies Ashkenazi transliterations (Succos, Shavuos, Bereishis, …).
 
@@ -82,7 +83,7 @@ One location is required (mutually exclusive): `--zip NNNNN`,
 | `shn` | Sefardi + Hebrew, no nikud |
 
 The mapping to Hebcal's `lg=` parameter and the nikud-enrichment behavior for
-`ah`/`ahn` are documented in [`CLAUDE.md`](CLAUDE.md#language-modes).
+`ah`/`ahn` are documented in [`AGENTS.md`](AGENTS.md#language-modes).
 
 ### Output filenames
 
@@ -102,7 +103,7 @@ For `--tzid`, use standard IANA names: `America/New_York`, `Europe/Berlin`,
 
 | Doc | Contents |
 |-----|----------|
-| [`CLAUDE.md`](CLAUDE.md) | Working in the repo: layout, build/test/make targets, CLI, language modes, cache semantics, where each mapping lives |
+| [`AGENTS.md`](AGENTS.md) | Working in the repo: layout, build/test/make targets, CLI, language modes, cache semantics, where each mapping lives |
 | [`docs/architecture.md`](docs/architecture.md) | System design, pipeline, and the chabad.org / Hebcal data contracts |
 | [`docs/roadmap.md`](docs/roadmap.md) | Planned work (versioning, VTIMEZONE, haftorah verification, …) |
 | [`docs/technical-debt.md`](docs/technical-debt.md) | Prioritized debt register |
@@ -112,7 +113,7 @@ For `--tzid`, use standard IANA names: `America/New_York`, `Europe/Berlin`,
 Responses are cached under `~/.cache/didan/`: per-date zmanim in `zmanim.json`
 (deterministic, 30-day retention, schema-versioned) and raw HTTP bodies in
 `http/` (7-day TTL). `--refresh` bypasses everything. See
-[`CLAUDE.md`](CLAUDE.md#cache-semantics) for details.
+[`AGENTS.md`](AGENTS.md#cache-semantics) for details.
 
 ## Data and licensing notes
 
