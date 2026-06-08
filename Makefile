@@ -48,7 +48,7 @@ check: style scan test
 
 # fmt: format all Go source files in place.
 fmt:
-	gofmt -w .
+	gofmt -l -w .
 
 # style: format check + vet + staticcheck.
 style:
