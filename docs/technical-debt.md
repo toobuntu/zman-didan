@@ -115,6 +115,14 @@ JSON) and a known data discrepancy.
 
 **Files.** New `*_test.go` in each package; fixtures where network-free.
 
+**Reference.** PR #1 (archived at `docs/reviews/pr1.diff`; disposition in
+`docs/reviews/pr1-review.md`) carries test scaffolding for `alarm`
+(`builder_test.go`), `cleaner` (`description_test.go`), and `haftorah`
+(`patcher_test.go`) — 3 of the 5 gaps. Treat as a starting point, not a
+drop-in: signatures predate the current base, and the `haftorah` tests include
+`loadTable()`/embedded-fallback cases that P1-4 removes. `hebcal` and
+`generator` are not covered by the PR and must be written fresh.
+
 ---
 
 ## P1-3 · HTTP body cache lacks schema versioning
