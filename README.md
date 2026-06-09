@@ -20,7 +20,7 @@ times, and (optionally) Ashkenazi transliterations.
 - Enriches descriptions with zmanim: shkiah/tzeis for candle lighting, the Shma
   window (misheyakir–latest shema) for havdalah, chatzos halaila for the Pesach
   seder, chatzos hayom for Tisha B'Av, and menora-lighting windows for Chanuka.
-- Synthesises timed fast begin/end events with alarms.
+- Synthesizes timed fast begin/end events with alarms.
 - Prefers the Chabad haftarah from the Hebcal API, falling back to an embedded
   table.
 - Merges Chabad Yomei d'Pagra with reformatted descriptions.
