@@ -29,7 +29,7 @@ jobs:
           check-latest: true
 
       - name: Tidy
-        run: go mod tidy && git diff --exit-code go.sum
+        run: go mod tidy -diff
 
       - name: Format
         run: |
