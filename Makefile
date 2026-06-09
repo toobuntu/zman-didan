@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-.PHONY: build install dev test integration check fmt style scan vale actionlint reuse tidy hooks clean
+.PHONY: build install dev test integration check fmt style scan vale actionlint zizmor reuse tidy hooks clean
 
 BINARY := bin/didan
 
@@ -22,6 +22,8 @@ dev:
 		'staticcheck|honnef.co/go/tools/cmd/staticcheck@latest' \
 		'govulncheck|golang.org/x/vuln/cmd/govulncheck@latest' \
 		'actionlint|github.com/rhysd/actionlint/cmd/actionlint@latest' \
+		'shellcheck|' \
+		'zizmor|' \
 		'vale|' \
 		'reuse|'; do \
 		tool=$${entry%%|*}; gopath=$${entry#*|}; \
@@ -86,10 +88,20 @@ vale:
 	}
 	vale README.md AGENTS.md docs/
 
-# actionlint: lint workflow files.
+# actionlint: lint every workflow (reads .github/actionlint.yaml; shells out to
+# shellcheck on run: blocks when shellcheck is on PATH).
 # Install: brew install actionlint  OR  go install github.com/rhysd/actionlint/cmd/actionlint@latest
 actionlint:
-	actionlint .github/workflows/ci.yml
+	actionlint
+
+# zizmor: audit workflows for supply-chain and permission issues
+# (reads .github/zizmor.yml). Install: brew install zizmor  OR  pipx run zizmor
+zizmor:
+	@command -v zizmor >/dev/null 2>&1 || { \
+		echo "error: zizmor not found. Install: brew install zizmor"; \
+		exit 1; \
+	}
+	zizmor .
 
 # reuse: REUSE license compliance.
 # Install: brew install reuse  OR  pipx install reuse
