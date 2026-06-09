@@ -15,6 +15,11 @@ bin/
 # Debug investigation artifacts
 docs/debug/
 
+# Review and handoff scaffolding — keep only curated docs
+docs/reviews/*
+!docs/reviews/pr1-review.md
+docs/handoff/completed/
+
 # macOS
 .DS_Store
 
