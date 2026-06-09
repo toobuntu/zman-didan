@@ -46,6 +46,9 @@ jobs:
       - name: Build
         run: go build ./...
 
+      - name: Test
+        run: go test -count=1 ./...
+
       - name: staticcheck
         run: |
           go install honnef.co/go/tools/cmd/staticcheck@latest
