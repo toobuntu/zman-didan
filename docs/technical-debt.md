@@ -118,10 +118,12 @@ JSON) and a known data discrepancy.
 **Reference.** PR #1 (archived at `docs/reviews/pr1.diff`; disposition in
 `docs/reviews/pr1-review.md`) carries test scaffolding for `alarm`
 (`builder_test.go`), `cleaner` (`description_test.go`), and `haftorah`
-(`patcher_test.go`) — 3 of the 5 gaps. Treat as a starting point, not a
-drop-in: signatures predate the current base, and the `haftorah` tests include
-`loadTable()`/embedded-fallback cases that P1-4 removes. `hebcal` and
-`generator` are not covered by the PR and must be written fresh.
+(`patcher_test.go`) — 3 of the 5 gaps. Verified 2026-06-09: all three **compile
+and pass against current `main` unmodified** (38 tests), so they are drop-in,
+not merely a starting point — signatures did not drift. Caveat for `haftorah`:
+~8 of its 21 cases exercise `loadTable()`/the embedded table and must be dropped
+or re-pointed to a `HaftarahChabad` fixture when P1-4 removes that path. `hebcal`
+and `generator` are not covered by the PR and must be written fresh.
 
 ---
 

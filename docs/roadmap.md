@@ -85,11 +85,12 @@ grid would be strictly more brittle for no data we lack.
 silently omits it for other zones. Generate `VTIMEZONE` from the IANA tzdata
 (DST transitions, offsets) so non-Eastern locations produce correct output.
 
-## 9. Test coverage gaps — planned
+## 9. Test coverage gaps — in progress
 
-Packages still without unit tests: `alarm`, `cleaner`, `haftorah`, `hebcal`,
-`generator`. The `internal/integration` harness (build-tagged) is in place;
-populate it with end-to-end fixtures.
+`alarm`, `cleaner`, and `haftorah` now have table-driven unit tests (adopted
+from PR #1, verified drop-in — 38 tests). Still without unit tests: `hebcal`
+and `generator` (write fresh). The `internal/integration` harness (build-tagged)
+is in place; populate it with end-to-end fixtures.
 
 ## 10. Developer tooling — planned
 
