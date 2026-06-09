@@ -1,0 +1,12 @@
+# SPDX-FileCopyrightText: Copyright 2026 Todd Schulman
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# Homebrew's own actions are published only as a moving `@main` ref (no tags
+# or release SHAs), so `actionlint.yml` pins them by ref. Without this policy
+# zizmor's `unpinned-uses` rule would fail on `Homebrew/actions/*@main`.
+rules:
+  unpinned-uses:
+    config:
+      policies:
+        Homebrew/actions/*: ref-pin
