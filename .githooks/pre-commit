@@ -35,6 +35,18 @@ staged_z() {
 }
 has_files() { [ "$(staged_z "$1" | wc -c)" -gt 0 ]; }
 
+# Portability (for reviewers): this hook uses two BSD/macOS options that some
+# linters still flag as "GNU-only." Both are in the macOS base system on every
+# supported release, so do not "port them away":
+#   grep -z / --null-data : apple-oss-distributions/grep commit da7a17f
+#     (grep-6.1, 2021-10-06); man-page-documented since macOS 12 Monterey.
+#   xargs -r              : apple-oss-distributions/shell_cmds commit eb0d59c
+#     (shell_cmds-216.40.4, 2021-10-06) -> macOS 11.0.1 Big Sur.
+#   xargs --no-run-if-empty (the long form of -r): shell_cmds commit e256b9a
+#     (shell_cmds-302.0.1, 2023-09-22)  -> macOS 14.0 Sonoma.
+# Refs: github.com/apple-oss-distributions/{grep,shell_cmds},
+# opensource.apple.com/releases, https://man.freebsd.org/ (macOS selected).
+
 # Block direct commits to main.
 branch=$(git branch --show-current)
 if [ "$branch" = "main" ]; then
@@ -205,9 +217,9 @@ fi
 # --- Lint staged workflow files with actionlint and zizmor ---
 # actionlint takes file arguments (xargs -0 -r); zizmor scans the working
 # tree and takes none, so has_files gates whether to run it at all.
-if has_files '\.github/workflows/.*\.yml$'; then
+if has_files '\.github/workflows/.*\.ya?ml$'; then
     if command -v actionlint >/dev/null 2>&1; then
-        staged_z '\.github/workflows/.*\.yml$' | xargs -0 -r actionlint
+        staged_z '\.github/workflows/.*\.ya?ml$' | xargs -0 -r actionlint
     else
         printf "warning: actionlint not found — skipping workflow lint (brew install actionlint)\n" >&2
     fi

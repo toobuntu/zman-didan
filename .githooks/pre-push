@@ -4,24 +4,45 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 set -euo pipefail
 
-# Reject pushes that include unsigned or invalidly signed commits.
-# Skip deletions and refs that do not peel to a commit.
-while read -r local_ref local_oid _ _; do
-  status="$(git log -1 '--format=%G?' "${local_oid}^{commit}" 2>/dev/null)" || continue
+# Reject any push that would introduce an unsigned or invalidly signed commit.
+#
+# git supplies one line per ref on stdin: "<local_ref> <local_oid> <remote_ref>
+# <remote_oid>". Validate EVERY commit the push adds, not just the tip -- an
+# unsigned commit buried under a signed tip would otherwise slip through, which
+# is the whole point of the gate. For a ref update that is the
+# remote_oid..local_oid range; for a brand-new ref (remote_oid all-zero) it is
+# whatever local_oid reaches that is not already published (--not --remotes), so
+# history already on the remote is not re-validated.
+#
+# %G? codes: G good, U good/unknown-signer, X expired key, Y expired cert (all
+# accepted); N no signature; B/R/E bad/revoked/missing-key (rejected).
+while read -r local_ref local_oid _ remote_oid; do
+  # Skip ref deletions: a deletion's local OID is all-zero. Bash strips every
+  # "0"; an all-zero OID leaves the empty string. Length-agnostic (SHA-1/256).
+  [ -z "${local_oid//0/}" ] && continue
 
-  case "${status}" in
-    # G good, U good+unknown signer, X expired key, Y expired cert
-    G|U|X|Y)
-      ;;
-    # N no signature
-    N)
-      echo "Push rejected: ${local_ref} is not signed" >&2
-      exit 1
-      ;;
-    # B bad, R good+revoked key, E missing key
-    *)
-      echo "Push rejected: ${local_ref} signature is not valid" >&2
-      exit 1
-      ;;
-  esac
+  # Precise range when we actually have remote_oid locally; otherwise (new ref,
+  # or a remote tip we have not fetched) fall back to everything local_oid
+  # reaches that is not already published.
+  if [ -n "${remote_oid//0/}" ] && git cat-file -e "${remote_oid}^{commit}" 2>/dev/null; then
+    range=("${remote_oid}..${local_oid}")
+  else
+    range=("${local_oid}" --not --remotes)
+  fi
+
+  # Process substitution, not a pipe, so a rejection's `exit 1` leaves the hook
+  # rather than just a subshell.
+  while IFS= read -r oid; do
+    case "$(git log -1 --format='%G?' "${oid}")" in
+      G | U | X | Y) ;;
+      N)
+        echo "Push rejected: ${local_ref} adds unsigned commit ${oid}" >&2
+        exit 1
+        ;;
+      *)
+        echo "Push rejected: ${local_ref} adds an invalidly signed commit ${oid}" >&2
+        exit 1
+        ;;
+    esac
+  done < <(git rev-list "${range[@]}")
 done

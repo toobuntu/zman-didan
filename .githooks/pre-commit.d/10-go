@@ -18,6 +18,10 @@ staged_z() {
 }
 has_files() { [ "$(staged_z "$1" | wc -c)" -gt 0 ]; }
 
+# Portability: grep --null-data and xargs -r are macOS base-system options on
+# every supported release (Big Sur 11+ / Sonoma 14+ for -r's long form); see the
+# base hook's portability note for the apple-oss-distributions provenance.
+
 # gofmt staged Go files in place, then re-stage.
 staged_z '\.go$' | xargs -0 -r gofmt -w
 staged_z '\.go$' | xargs -0 -r git add
