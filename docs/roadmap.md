@@ -77,7 +77,7 @@ chabad.org also exposes a printable monthly grid
 is an HTML table built for human display (presentation markup, column headers,
 pagination, no stable contract), whereas the RSS `<item><title>` lines are a
 flat, label-prefixed, machine-oriented format didan already parses robustly. The
-grid would be strictly more brittle for no data didan lacks.
+grid would be strictly more brittle without gaining data didan lacks.
 
 ## 8. VTIMEZONE generalization — planned
 

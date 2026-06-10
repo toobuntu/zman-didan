@@ -93,3 +93,25 @@ jobs:
         run: |
           vale --version
           make vale
+
+  lint-perms:
+    # Single source of truth for the policy and check is scripts/lint-perms.sh;
+    # .githooks/pre-commit invokes the same script with --staged. This job runs
+    # it with --tracked over the whole tree, catching a missing execute bit
+    # (e.g. a hook committed 100644) that would otherwise ship silently.
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+      - name: Verify execute bit on shipped scripts
+        env:
+          LINT_PERMS_FORMAT: ci
+        run: |
+          if [ ! -x ./scripts/lint-perms.sh ]; then
+            echo "::error file=scripts/lint-perms.sh::missing or not executable in the checkout"
+            exit 1
+          fi
+          ./scripts/lint-perms.sh --tracked

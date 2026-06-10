@@ -72,6 +72,7 @@ emit_paths() {
 # and set -e propagates it as the script's exit status. grep's
 # exit-1-on-no-match in the middle of the pipeline is invisible to
 # set -e (pipefail is not set), so xargs's 0 stands.
+# shellcheck disable=SC2016  # $1/$2 in the sh -c body expand in the inner sh, by design.
 emit_paths \
     | /usr/bin/grep --extended-regexp --null-data "$PERMS_PATTERN" \
     | xargs -0 -r -n 1 sh -c '
@@ -88,7 +89,9 @@ emit_paths \
         fix="chmod 755 \"$file\" && git update-index --chmod=+x \"$file\""
         case "$fmt" in
             ci)
-                printf "::error file=%s::missing execute bit (mode %s)\nFix: %s\n" \
+                # GitHub annotation commands take a single-line message; a raw
+                # newline drops everything after it, so keep "Fix" inline.
+                printf "::error file=%s::missing execute bit (mode %s). Fix: %s\n" \
                     "$file" "$mode" "$fix"
                 ;;
             shell)
