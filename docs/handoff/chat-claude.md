@@ -66,7 +66,7 @@ The haftorah package is now the most critical since it has two code paths
 - Go's default HTTP transport adds Accept-Encoding: gzip and decompresses
   transparently — no code change needed to benefit from Hebcal's compression.
 - Hebcal's Cache-Control/Expires headers are properly set; our HTTPCache (mtime-based,
-  7-day TTL) is compatible but ignores those headers in favour of our own TTL.
+  7-day TTL) is compatible but ignores those headers in favor of our own TTL.
 - anash.org's zmanim widget uses WordPress AJAX to their own PHP backend, which
   proxies to chabad.org server-side. No private chabad.org API is involved.
 

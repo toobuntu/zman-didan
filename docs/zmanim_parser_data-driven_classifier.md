@@ -275,6 +275,6 @@ That’s about as robust as you can get without the feed giving you real structu
 
 ⸻
 
-If you want next step, we could:
+Possible next steps:
 	•	formalize event keys (instead of raw strings)
 	•	or build a small test harness from captured RSS to lock this behavior down before it drifts again

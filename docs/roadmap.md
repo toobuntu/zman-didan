@@ -76,8 +76,8 @@ chabad.org also exposes a printable monthly grid
 (`/calendar/zmanimgrid_cdo/...`). Decision: **stay on the RSS feed.** The grid
 is an HTML table built for human display (presentation markup, column headers,
 pagination, no stable contract), whereas the RSS `<item><title>` lines are a
-flat, label-prefixed, machine-oriented format we already parse robustly. The
-grid would be strictly more brittle for no data we lack.
+flat, label-prefixed, machine-oriented format didan already parses robustly. The
+grid would be strictly more brittle for no data didan lacks.
 
 ## 8. VTIMEZONE generalization — planned
 
@@ -116,16 +116,16 @@ Today's special dates come from Hebcal's pre-built `chabad-special-dates.ics`,
 whose SUMMARY strings drifted (e.g. "R. Menachem M. Schneerson", not
 "...Menachem Mendel..."), breaking `rebbes.json` verbose-name matching and
 dropping rebbe events (technical-debt P1-6). Replace the dependency on the
-pre-built feed with our own curated list:
+pre-built feed with a self-owned curated list:
 
 - Maintain `yomei_dpagra.json` as the source of truth: per event, the Hebrew
   date (day + month), base Hebrew year (for the "Nth" count), type
-  (Birthday/Passing/Anniversary), and our own DESCRIPTION text + emoji.
+  (Birthday/Passing/Anniversary), and didan's own DESCRIPTION text + emoji.
 - Resolve Gregorian dates via the Yahrzeit + Anniversary API
   (`POST https://www.hebcal.com/yahrzeit`, `cfg=json&v=yahrzeit`,
   `n#/t#/hd#/hm#/hy#`, `hebdate=on`, `years=N`); the response yields `date`,
   `hdate`, and `anniversary` (the Nth count) per occurrence.
-- Replace the API `.memo` with our text; add VALARMs one day before and on the
+- Replace the API `.memo` with didan's text; add VALARMs one day before and on the
   day of each yoma d'pagra.
 - Respect feed limits (Yahrzeit/Anniversary feeds cap at 1,200 events; at ~23
   events/year that bounds a *subscription* feed to ~52 years). didan generates
