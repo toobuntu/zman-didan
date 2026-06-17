@@ -6,7 +6,7 @@ SPDX-License-Identifier: GPL-3.0-or-later
 
 You are taking over development of `zman-didan` (module: github.com/toobuntu/zman-didan),
 a Go CLI tool that generates Chabad-minhag iCalendar (.ics) files. The project is at
-/Users/todd/devel/claude/desktop/didan/. Start by reading CLAUDE.md in full, then
+/Users/todd/devel/claude/desktop/toobuntu/zman-didan/. Start by reading CLAUDE.md in full, then
 internal/types/types.go, internal/hebcal/client.go, and internal/haftorah/patcher.go
 to orient yourself. The Filesystem MCP server is connected; use it for all file access.
 
