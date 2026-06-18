@@ -16,7 +16,7 @@
 # tags (JJ*) let didan enforce this at error without flagging legitimate
 # possessives.
 extends: sequence
-message: "Pluralize an abbreviation without an apostrophe (e.g. 'PRs', not 'PR's')."
+message: "Pluralize an abbreviation without an apostrophe (e.g. PRs, not PR's)."
 link: https://www.elastic.co/docs/contribute-docs/style-guide/grammar-spelling#making-abbreviations-plural
 level: error
 tokens:
