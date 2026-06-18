@@ -31,7 +31,7 @@ while read -r local_ref local_oid _ remote_oid; do
   elif git remote get-url "${1:-}" >/dev/null 2>&1; then
     range=("${local_oid}" --not "--remotes=$1")
   else
-    range=("${local_oid}" --not --remotes)
+    range=("${local_oid}")
   fi
 
   # Process substitution, not a pipe, so a rejection's `exit 1` leaves the hook
