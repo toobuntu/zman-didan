@@ -38,7 +38,7 @@ field names are facts, not expression).
 Deliverables:
 
 1. **Mine now (no rewrite):** a written investigation under `docs/` — either a
-   new `docs/zmanim-get-zmanim-investigation.md` or an addition to
+   new `docs/zmanim_get_zmanim_investigation.md` or an addition to
    `docs/architecture.md` — recording the `ZmanType` enum values, the
    param/header recipe, the `Default`-flag + `Footnotes` semantics, and the
    ASP.NET-date / HTML-entity handling, in enough detail that a future Go
@@ -48,7 +48,8 @@ Deliverables:
    the RSS substring classifier behind the Shabbos/Yom-Tov regression).
    Prototype one known date against both the RSS path and `Get_Zmanim`, diff the
    results, and record the decision as a MADR-format ADR in `docs/decisions/`
-   (didan's `0001` slot is free; `0002` is the Go-version-floor ADR).
+   (didan's `0003` slot is free; `0001` is the Vale-via-Homebrew ADR;
+   `0002` is the Go-version-floor ADR).
 3. **Caveats:** note the endpoint is undocumented with no stability contract and
    that chabad.org's RSS terms (contact before distribution) apply equally;
    state whether they change the recommendation.
