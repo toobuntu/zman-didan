@@ -6,7 +6,7 @@ SPDX-License-Identifier: GPL-3.0-or-later
 
 You are helping T (GitHub: toobuntu) continue development of zman-didan, a pure-Go CLI
 that generates Chabad-minhag iCalendar (.ics) files. Working dir:
-/Users/todd/devel/claude/desktop/didan (module github.com/toobuntu/zman-didan, binary
+/Users/todd/devel/claude/desktop/toobuntu/zman-didan (module github.com/toobuntu/zman-didan, binary
 bin/didan). You operate on T's real machine via the Filesystem and git MCP servers —
 those tools act on T's filesystem, NOT a container; your own bash is network-disabled and
 operates on a separate container, so use the MCP tools for all repo work. Verify file

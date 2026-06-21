@@ -157,7 +157,7 @@ title text; the latter is an alternative haftorah string in the leyning object.
 | `ashkenazi_litvish` | Lithuanian variant differs | Potentially closest to Chabad Yiddish pronunciation; unverified |
 
 Go's default HTTP transport adds `Accept-Encoding: gzip` automatically and
-decompresses transparently — no explicit header needed in our client code.
+decompresses transparently — no explicit header needed in the client code.
 
 ## Cache semantics
 

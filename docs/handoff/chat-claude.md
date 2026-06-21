@@ -6,7 +6,7 @@ SPDX-License-Identifier: GPL-3.0-or-later
 
 You are taking over development of `zman-didan` (module: github.com/toobuntu/zman-didan),
 a Go CLI tool that generates Chabad-minhag iCalendar (.ics) files. The project is at
-/Users/todd/devel/claude/desktop/didan/. Start by reading CLAUDE.md in full, then
+/Users/todd/devel/claude/desktop/toobuntu/zman-didan/. Start by reading CLAUDE.md in full, then
 internal/types/types.go, internal/hebcal/client.go, and internal/haftorah/patcher.go
 to orient yourself. The Filesystem MCP server is connected; use it for all file access.
 
@@ -66,7 +66,7 @@ The haftorah package is now the most critical since it has two code paths
 - Go's default HTTP transport adds Accept-Encoding: gzip and decompresses
   transparently — no code change needed to benefit from Hebcal's compression.
 - Hebcal's Cache-Control/Expires headers are properly set; our HTTPCache (mtime-based,
-  7-day TTL) is compatible but ignores those headers in favour of our own TTL.
+  7-day TTL) is compatible but ignores those headers in favor of our own TTL.
 - anash.org's zmanim widget uses WordPress AJAX to their own PHP backend, which
   proxies to chabad.org server-side. No private chabad.org API is involved.
 

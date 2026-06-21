@@ -26,3 +26,4 @@ docs/handoff/completed/
 # Editor
 .idea/
 *.swp
+*.bak
