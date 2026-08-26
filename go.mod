@@ -7,7 +7,7 @@ module github.com/toobuntu/zman-didan
 go 1.25
 
 require (
-	github.com/arran4/golang-ical v0.3.5
+	github.com/arran4/golang-ical v0.3.6
 	github.com/spf13/cobra v1.10.2
 )
 
